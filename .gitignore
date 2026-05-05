@@ -36,3 +36,4 @@ target/
 # Temporary
 tmp/
 temp/
+.worktrees/
