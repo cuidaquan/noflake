@@ -80,6 +80,37 @@ a {
   margin-top: 28px;
 }
 
+.flow-grid {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.error-text {
+  margin: 12px 0 0;
+  color: #a02828;
+}
+
 .primary-action,
 .secondary-action {
   padding: 14px 18px;

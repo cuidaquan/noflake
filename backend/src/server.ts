@@ -1,3 +1,4 @@
+import cors from "cors";
 import express from "express";
 import { createEventService } from "./services/event-service";
 import { createInMemoryStore } from "./store/in-memory-store";
@@ -7,6 +8,11 @@ export function buildServer() {
   const store = createInMemoryStore();
   const eventService = createEventService(store);
 
+  app.use(
+    cors({
+      origin: ["http://127.0.0.1:3000", "http://localhost:3000"]
+    })
+  );
   app.use(express.json());
 
   app.post("/events", (req, res) => {

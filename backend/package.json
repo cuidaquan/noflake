@@ -4,16 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx src/index.ts",
     "test": "vitest run"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "@noflake/shared": "file:../shared"
+    "@noflake/shared": "file:../shared",
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.18",
     "@types/express": "^5.0.3",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.1",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.4"
   }

@@ -5,10 +5,19 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:3000"
   },
-  webServer: {
-    command: "npm run dev",
-    port: 3000,
-    reuseExistingServer: true,
-    timeout: 120000
-  }
+  webServer: [
+    {
+      command: "npm run dev",
+      cwd: "../backend",
+      port: 4000,
+      reuseExistingServer: true,
+      timeout: 120000
+    },
+    {
+      command: "npm run dev",
+      port: 3000,
+      reuseExistingServer: true,
+      timeout: 120000
+    }
+  ]
 });
