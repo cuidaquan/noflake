@@ -111,6 +111,11 @@ a {
   color: #a02828;
 }
 
+.success-text {
+  margin: 16px 0 0;
+  color: #1f6b3f;
+}
+
 .primary-action,
 .secondary-action {
   padding: 14px 18px;
