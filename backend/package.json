@@ -7,9 +7,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "express": "^5.1.0",
     "@noflake/shared": "file:../shared"
   },
   "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.1",
     "typescript": "^5.8.3",
     "vitest": "^3.1.4"
   }
