@@ -1,0 +1,2 @@
+export const SUPPORTED_PAYMENT_TOKEN = "USDC";
+export const DEFAULT_DEPOSIT_AMOUNT = 20;
