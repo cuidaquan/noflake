@@ -8,15 +8,45 @@ describe("noflake", () => {
 
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const program = anchor.workspace.noflake as Program<Noflake>;
+  const strictMode = { strict: {} };
+  const partyMode = { party: {} };
 
   const waitForConfirmation = async (signature: string) => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const response = await provider.connection.getSignatureStatuses([signature]);
       const status = response.value[0];
       if (status?.err) {
-        throw new Error(`transaction failed: ${JSON.stringify(status.err)}`);
+        const error = new Error(
+          `transaction failed: ${JSON.stringify(status.err)}`
+        ) as Error & {
+          customErrorCode?: number;
+          transactionError?: unknown;
+          transactionLogs?: string[] | null;
+        };
+        const instructionError =
+          (status.err as {
+            InstructionError?: [number, { Custom?: number }];
+          }).InstructionError ?? [];
+        const customError =
+          typeof instructionError[1] === "object" &&
+          instructionError[1] !== null &&
+          "Custom" in instructionError[1]
+            ? instructionError[1].Custom
+            : undefined;
+        const transaction = await provider.connection.getTransaction(signature, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        });
+
+        error.customErrorCode = customError;
+        error.transactionError = status.err;
+        error.transactionLogs = transaction?.meta?.logMessages;
+        throw error;
       }
-      if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      if (
+        status?.confirmationStatus === "confirmed" ||
+        status?.confirmationStatus === "finalized"
+      ) {
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -24,20 +54,79 @@ describe("noflake", () => {
     throw new Error(`timed out waiting for confirmation: ${signature}`);
   };
 
-  it("creates an event account", async () => {
-    const host = anchor.web3.Keypair.generate();
+  const airdrop = async (recipient: anchor.web3.PublicKey, sol = 2) => {
+    const signature = await provider.connection.requestAirdrop(
+      recipient,
+      sol * anchor.web3.LAMPORTS_PER_SOL
+    );
+    await waitForConfirmation(signature);
+  };
+
+  const enumVariant = (value: Record<string, unknown>) => Object.keys(value)[0];
+
+  const expectAnchorError = async (
+    promise: Promise<unknown>,
+    expectedCode: string
+  ) => {
+    try {
+      await promise;
+      expect.fail(`expected Anchor error ${expectedCode}`);
+    } catch (error) {
+      const anchorError = error as {
+        error?: { errorCode?: { code?: string } };
+        customErrorCode?: number;
+        transactionLogs?: string[];
+        message?: string;
+        logs?: string[];
+      };
+      const logs = anchorError.transactionLogs ?? anchorError.logs ?? [];
+      const logErrorName = logs
+        .map((entry) => entry.match(/Error Code: ([A-Za-z0-9_]+)/)?.[1])
+        .find(Boolean);
+      const logErrorCode = logs
+        .map((entry) => entry.match(/custom program error: (0x[0-9a-f]+)/i)?.[1])
+        .find(Boolean);
+      const actualCode =
+        anchorError.error?.errorCode?.code ??
+        logErrorName ??
+        anchorError.customErrorCode ??
+        (logErrorCode ? Number.parseInt(logErrorCode, 16) : undefined);
+
+      expect(actualCode).to.equal(expectedCode);
+    }
+  };
+
+  const sendTransaction = async (
+    transaction: anchor.web3.Transaction,
+    signer: anchor.web3.Keypair
+  ) => {
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    transaction.feePayer = signer.publicKey;
+    transaction.recentBlockhash = blockhash;
+    transaction.sign(signer);
+
+    const signature = await provider.connection.sendRawTransaction(
+      transaction.serialize()
+    );
+    await waitForConfirmation(signature);
+  };
+
+  const initializeEvent = async ({
+    host,
+    seatCount,
+    settlementMode,
+  }: {
+    host: anchor.web3.Keypair;
+    seatCount: number;
+    settlementMode: typeof strictMode | typeof partyMode;
+  }) => {
+    await airdrop(host.publicKey);
+
     const title = "NoFlake Shanghai";
     const venue = "West Bund";
     const startTime = new anchor.BN(1_800_000_000);
     const cutoffTime = new anchor.BN(1_799_999_000);
     const depositAmount = new anchor.BN(500_000_000);
-    const seatCount = 42;
-
-    const signature = await provider.connection.requestAirdrop(
-      host.publicKey,
-      2 * anchor.web3.LAMPORTS_PER_SOL
-    );
-    await waitForConfirmation(signature);
 
     const [eventPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("event"), host.publicKey.toBuffer()],
@@ -51,7 +140,8 @@ describe("noflake", () => {
         startTime,
         cutoffTime,
         depositAmount,
-        seatCount
+        seatCount,
+        settlementMode
       )
       .accountsPartial({
         host: host.publicKey,
@@ -59,15 +149,67 @@ describe("noflake", () => {
       })
       .transaction();
 
-    const { blockhash } = await provider.connection.getLatestBlockhash();
-    transaction.feePayer = host.publicKey;
-    transaction.recentBlockhash = blockhash;
-    transaction.sign(host);
+    await sendTransaction(transaction, host);
 
-    const txSignature = await provider.connection.sendRawTransaction(
-      transaction.serialize()
+    return {
+      cutoffTime,
+      depositAmount,
+      eventPda,
+      seatCount,
+      startTime,
+      title,
+      venue,
+    };
+  };
+
+  const reserveSeat = async (
+    host: anchor.web3.Keypair,
+    attendee: anchor.web3.Keypair
+  ) => {
+    await airdrop(attendee.publicKey);
+
+    const [eventPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("event"), host.publicKey.toBuffer()],
+      program.programId
     );
-    await waitForConfirmation(txSignature);
+    const [reservationPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("reservation"),
+        eventPda.toBuffer(),
+        attendee.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+
+    const transaction = await program.methods
+      .reserveSeat()
+      .accountsPartial({
+        attendee: attendee.publicKey,
+        event: eventPda,
+        reservation: reservationPda,
+      })
+      .transaction();
+
+    await sendTransaction(transaction, attendee);
+
+    return { eventPda, reservationPda };
+  };
+
+  it("creates an event account", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const {
+      cutoffTime,
+      depositAmount,
+      eventPda,
+      seatCount,
+      startTime,
+      title,
+      venue,
+    } = await initializeEvent({
+      host,
+      seatCount: 42,
+      settlementMode: strictMode,
+    });
 
     const event = await program.account.eventAccount.fetch(eventPda);
     expect(event.host.toBase58()).to.equal(host.publicKey.toBase58());
@@ -79,5 +221,248 @@ describe("noflake", () => {
     expect(event.seatCount).to.equal(seatCount);
     expect(event.reservedCount).to.equal(0);
     expect(event.checkedInCount).to.equal(0);
+    expect(enumVariant(event.settlementMode as Record<string, unknown>)).to.equal(
+      "strict"
+    );
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("open");
+  });
+
+  it("waitlists attendees after capacity is reached", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+    });
+
+    const firstReservation = await reserveSeat(host, attendeeOne);
+    const secondReservation = await reserveSeat(host, attendeeTwo);
+
+    const event = await program.account.eventAccount.fetch(firstReservation.eventPda);
+    const reservationOne = await program.account.reservationAccount.fetch(
+      firstReservation.reservationPda
+    );
+    const reservationTwo = await program.account.reservationAccount.fetch(
+      secondReservation.reservationPda
+    );
+
+    expect(event.reservedCount).to.equal(1);
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("full");
+    expect(enumVariant(reservationOne.status as Record<string, unknown>)).to.equal(
+      "reserved"
+    );
+    expect(enumVariant(reservationTwo.status as Record<string, unknown>)).to.equal(
+      "waitlisted"
+    );
+  });
+
+  it("settles checked-in and no-show reservations in strict mode", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+    });
+
+    const firstReservation = await reserveSeat(host, attendeeOne);
+    const secondReservation = await reserveSeat(host, attendeeTwo);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    const settleCheckedInTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(settleCheckedInTransaction, host);
+
+    const settleNoShowTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: secondReservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(settleNoShowTransaction, host);
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+    await sendTransaction(finalizeTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const reservationOne = await program.account.reservationAccount.fetch(
+      firstReservation.reservationPda
+    );
+    const reservationTwo = await program.account.reservationAccount.fetch(
+      secondReservation.reservationPda
+    );
+
+    expect(event.checkedInCount).to.equal(1);
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("settled");
+    expect(enumVariant(reservationOne.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(enumVariant(reservationTwo.status as Record<string, unknown>)).to.equal(
+      "forfeited"
+    );
+  });
+
+  it("marks no-shows without forfeiture in party mode", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: partyMode,
+    });
+    const reservation = await reserveSeat(host, attendee);
+
+    const settleTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: reservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(settleTransaction, host);
+
+    const settledReservation = await program.account.reservationAccount.fetch(
+      reservation.reservationPda
+    );
+    expect(enumVariant(settledReservation.status as Record<string, unknown>)).to.equal(
+      "noShow"
+    );
+  });
+
+  it("rejects settling a waitlisted reservation", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+    });
+
+    await reserveSeat(host, attendeeOne);
+    const waitlistedReservation = await reserveSeat(host, attendeeTwo);
+
+    const settleTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: waitlistedReservation.reservationPda,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(settleTransaction, host),
+      "ReservationNotSettleable"
+    );
+  });
+
+  it("requires settling before finalizing an event", async () => {
+    const host = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+    });
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(finalizeTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("prevents check-in after an event has been finalized", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+    });
+
+    const firstReservation = await reserveSeat(host, attendeeOne);
+    const secondReservation = await reserveSeat(host, attendeeTwo);
+
+    const settleFirstTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(settleFirstTransaction, host);
+
+    const settleSecondTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: secondReservation.reservationPda,
+      })
+      .transaction();
+    await sendTransaction(settleSecondTransaction, host);
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+    await sendTransaction(finalizeTransaction, host);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation.reservationPda,
+      })
+      .transaction();
+
+    await expectAnchorError(sendTransaction(checkInTransaction, host), "EventCheckInClosed");
   });
 });

@@ -11,6 +11,11 @@ Included today:
 - `initialize_event`
 - `reserve_seat`
 - `check_in`
+- `settle_reservation`
+- `finalize_event`
+- waitlist handling when an event is full
+- strict / party / sponsor settlement mode state
+- event and reservation status guardrails
 
 Planned follow-up:
 
@@ -224,6 +229,12 @@ The happy-path test result looks like:
 ```text
 noflake
   ✔ creates an event account
+  ✔ waitlists attendees after capacity is reached
+  ✔ settles checked-in and no-show reservations in strict mode
+  ✔ marks no-shows without forfeiture in party mode
+  ✔ rejects settling a waitlisted reservation
+  ✔ requires settling before finalizing an event
+  ✔ prevents check-in after an event has been finalized
 
-1 passing
+7 passing
 ```
