@@ -33,10 +33,19 @@ VALIDATOR_PID=$!
 
 for _ in $(seq 1 60); do
   if solana block-height -u "$RPC_URL" >/dev/null 2>&1; then
+    VALIDATOR_READY=1
     break
   fi
   sleep 1
 done
+
+if [[ "${VALIDATOR_READY:-0}" != "1" ]]; then
+  echo "solana-test-validator did not become ready at $RPC_URL" >&2
+  if [[ -f /tmp/noflake-validator.log ]]; then
+    cat /tmp/noflake-validator.log >&2
+  fi
+  exit 1
+fi
 
 ANCHOR_PROVIDER_URL="$RPC_URL" \
 ANCHOR_WALLET="$WALLET_PATH" \

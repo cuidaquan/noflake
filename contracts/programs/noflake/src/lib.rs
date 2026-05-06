@@ -26,6 +26,7 @@ pub mod noflake {
         event.seat_count = seat_count;
         event.reserved_count = 0;
         event.checked_in_count = 0;
+        event.settled_count = 0;
         event.settlement_mode = settlement_mode;
         event.status = EventStatus::Open;
         event.bump = ctx.bumps.event;
@@ -115,7 +116,12 @@ pub mod noflake {
             }
         };
 
-        event.status = EventStatus::Settling;
+        event.settled_count = event.settled_count.saturating_add(1);
+        event.status = if event.settled_count >= event.reserved_count {
+            EventStatus::Settling
+        } else {
+            EventStatus::InProgress
+        };
         Ok(())
     }
 
@@ -130,6 +136,10 @@ pub mod noflake {
             event.status == EventStatus::Settling,
             NoflakeError::EventNotReadyToFinalize
         );
+        require!(
+            event.settled_count >= event.reserved_count,
+            NoflakeError::EventNotReadyToFinalize
+        );
 
         event.status = EventStatus::Settled;
         Ok(())
@@ -137,6 +147,7 @@ pub mod noflake {
 }
 
 #[derive(Accounts)]
+#[instruction(start_time: i64)]
 pub struct InitializeEvent<'info> {
     #[account(mut)]
     pub host: Signer<'info>,
@@ -144,7 +155,7 @@ pub struct InitializeEvent<'info> {
         init,
         payer = host,
         space = 8 + EventAccount::INIT_SPACE,
-        seeds = [b"event", host.key().as_ref()],
+        seeds = [b"event", host.key().as_ref(), &start_time.to_le_bytes()],
         bump
     )]
     pub event: Account<'info, EventAccount>,
@@ -208,6 +219,7 @@ pub struct EventAccount {
     pub settlement_mode: SettlementMode,
     pub reserved_count: u16,
     pub checked_in_count: u16,
+    pub settled_count: u16,
     pub status: EventStatus,
     pub bump: u8,
 }
