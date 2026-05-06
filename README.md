@@ -118,6 +118,133 @@ cargo check
 
 `anchor test` is planned, but it requires local `anchor` and `solana` CLIs to be installed and available on `PATH`.
 
+## Solana / Anchor Local Development
+
+The `contracts/` package is now wired for real local Anchor testing.
+
+Current local contract toolchain:
+
+- `anchor-cli 0.32.1`
+- `solana-cli 3.0.15`
+- `@coral-xyz/anchor 0.32.1`
+
+### Contract Setup
+
+Install contract dependencies:
+
+```bash
+cd contracts
+npm install
+```
+
+Make sure the Anchor wallet exists:
+
+```bash
+mkdir -p ~/.config/solana
+solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
+```
+
+Useful version checks:
+
+```bash
+rustc --version
+cargo --version
+node --version
+npm --version
+solana --version
+anchor --version
+```
+
+### Contract Commands
+
+Build the local SBF artifact:
+
+```bash
+cd contracts
+npm run build:sbf
+```
+
+Run the clean local validator + real integration test flow:
+
+```bash
+cd contracts
+npm run test:localnet
+```
+
+Run Anchor's built-in test command:
+
+```bash
+cd contracts
+anchor test
+```
+
+### Recommended Contract Workflow
+
+For day-to-day local contract work, prefer:
+
+```bash
+cd contracts
+npm run test:localnet
+```
+
+That flow:
+
+- builds the program with the correct SBF platform tools
+- regenerates the IDL and TS types
+- starts a fresh local validator
+- loads the local program binary
+- runs the TypeScript integration test against localnet
+
+### Notes About `anchor test`
+
+`anchor test` works in this repo, but on this machine it may print a trailing `websocket error` after the test has already passed.
+
+If the output includes:
+
+```text
+1 passing
+```
+
+the contract test succeeded.
+
+If you want the cleanest output, use:
+
+```bash
+cd contracts
+npm run test:localnet
+```
+
+### Contract Troubleshooting
+
+If you see `feature edition2024 is required`, reload your shell first:
+
+```bash
+source ~/.bashrc
+hash -r
+```
+
+Then rerun:
+
+```bash
+cd contracts
+anchor test
+```
+
+If that still looks noisy, use:
+
+```bash
+cd contracts
+npm run test:localnet
+```
+
+If you see `faucet port 9900 is already in use`, stop any leftover validator and retry:
+
+```bash
+pkill -f solana-test-validator || true
+```
+
+For a contracts-only guide, see [contracts/README.md](./contracts/README.md).
+
 ## Milestone Targets
 
 - M1: project scaffolding complete
