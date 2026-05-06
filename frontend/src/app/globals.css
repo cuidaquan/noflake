@@ -92,6 +92,23 @@ a {
   background: rgba(255, 255, 255, 0.45);
 }
 
+.attendee-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inline-meta {
+  margin: 6px 0 0;
+  color: rgba(22, 33, 29, 0.72);
+  font-size: 0.95rem;
+}
+
+.settlement-panel {
+  margin-top: 20px;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -138,5 +155,10 @@ a {
 
   .hero-card {
     padding: 28px 22px;
+  }
+
+  .attendee-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

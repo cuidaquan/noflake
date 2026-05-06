@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { createEventService } from "./services/event-service";
 import { createReservationService } from "./services/reservation-service";
+import { createSettlementService } from "./services/settlement-service";
 import { createInMemoryStore } from "./store/in-memory-store";
 
 export function buildServer() {
@@ -9,6 +10,7 @@ export function buildServer() {
   const store = createInMemoryStore();
   const eventService = createEventService(store);
   const reservationService = createReservationService(store);
+  const settlementService = createSettlementService();
 
   app.use(
     cors({
@@ -23,25 +25,11 @@ export function buildServer() {
   });
 
   app.get("/events/:eventId", (req, res) => {
-    const event = eventService.getEventById(req.params.eventId);
+    const event =
+      eventService.getEventById(req.params.eventId) ??
+      reservationService.getEvent(req.params.eventId);
 
     if (!event) {
-      if (req.params.eventId === "evt_1") {
-        res.status(200).json({
-          id: "evt_1",
-          title: "Builder Dinner",
-          hostWallet: "demo-host-wallet",
-          venue: "Shanghai",
-          startTime: "2026-05-20T19:00:00.000Z",
-          depositAmount: 20,
-          seatCount: 20,
-          cutoffTime: "2026-05-20T17:00:00.000Z",
-          settlementMode: "STRICT",
-          status: "OPEN"
-        });
-        return;
-      }
-
       res.status(404).json({ message: "Event not found" });
       return;
     }
@@ -56,6 +44,45 @@ export function buildServer() {
     );
 
     res.status(201).json(reservation);
+  });
+
+  app.get("/events/:eventId/reservations", (req, res) => {
+    const reservations = reservationService.getReservations(req.params.eventId);
+    res.status(200).json(reservations);
+  });
+
+  app.post("/events/:eventId/check-in", (req, res) => {
+    const reservation = reservationService.checkIn(
+      req.params.eventId,
+      req.body.attendeeWallet ?? "wallet-1"
+    );
+
+    res.status(200).json(reservation);
+  });
+
+  app.post("/events/:eventId/settle", (req, res) => {
+    const event =
+      eventService.getEventById(req.params.eventId) ??
+      reservationService.getEvent(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    const reservations = reservationService.getReservations(req.params.eventId);
+    const summary = settlementService.settle({ event, reservations });
+
+    for (const reservation of reservations) {
+      if (reservation.status === "CHECKED_IN") {
+        reservation.status = "REFUNDED";
+      } else if (reservation.status === "RESERVED") {
+        reservation.status = event.settlementMode === "STRICT" ? "FORFEITED" : "NO_SHOW";
+      }
+    }
+
+    event.status = "SETTLED";
+    res.status(200).json(summary);
   });
 
   return app;
