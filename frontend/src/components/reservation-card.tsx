@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { reserveSeat as createReservation, type ReservationDetails } from "../lib/api";
+import { useWallet } from "./wallet-provider";
 
 type ReservationCardProps = {
   eventId: string;
@@ -9,39 +11,25 @@ type ReservationCardProps = {
   depositAmount: number;
 };
 
-type ReservationResult = {
-  id: string;
-  status: string;
-};
-
 export function ReservationCard({
   eventId,
   title,
   venue,
   depositAmount
 }: ReservationCardProps) {
-  const [reservation, setReservation] = useState<ReservationResult | null>(null);
+  const { walletAddress, connectWallet } = useWallet();
+  const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function reserveSeat() {
+  async function handleReserveSeat() {
+    if (!walletAddress) {
+      throw new Error("Wallet not connected");
+    }
+
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`http://127.0.0.1:4000/events/${eventId}/reservations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          attendeeWallet: "demo-attendee-wallet"
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Reservation failed: ${response.status}`);
-      }
-
-      const payload = (await response.json()) as ReservationResult;
+      const payload = await createReservation(eventId, walletAddress);
       setReservation(payload);
     } finally {
       setIsSubmitting(false);
@@ -54,12 +42,26 @@ export function ReservationCard({
       <h1>{title}</h1>
       <p>{venue}</p>
       <p>{depositAmount} USDC refundable deposit</p>
-      <button className="primary-action" onClick={reserveSeat} disabled={isSubmitting}>
+      <div className="wallet-row">
+        <button className="secondary-action" onClick={connectWallet} disabled={Boolean(walletAddress)}>
+          Connect wallet
+        </button>
+        <p className="inline-meta">
+          {walletAddress ? `Connected: ${walletAddress}` : "Connect wallet to reserve your seat"}
+        </p>
+      </div>
+      <button
+        className="primary-action"
+        onClick={handleReserveSeat}
+        disabled={isSubmitting || !walletAddress}
+      >
         {isSubmitting ? "Reserving..." : "Reserve with USDC"}
       </button>
 
       {reservation ? (
-        <p className="success-text">Reservation confirmed: {reservation.status}</p>
+        <p className="success-text">
+          Reservation confirmed: {reservation.status} for {reservation.attendeeWallet}
+        </p>
       ) : null}
     </section>
   );

@@ -103,3 +103,22 @@ export async function settleEvent(eventId: string): Promise<SettlementSummary> {
 
   return response.json();
 }
+
+export async function reserveSeat(
+  eventId: string,
+  attendeeWallet: string
+): Promise<ReservationDetails> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/reservations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ attendeeWallet })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reservation failed: ${response.status}`);
+  }
+
+  return response.json();
+}
