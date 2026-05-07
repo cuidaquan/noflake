@@ -220,6 +220,45 @@ describe("noflake", () => {
     await sendTransaction(transaction, host);
   };
 
+  const undoCheckIn = async ({
+    host,
+    eventPda,
+    reservationPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await program.methods
+      .undoCheckIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: reservationPda,
+      })
+      .transaction();
+
+    await sendTransaction(transaction, host);
+  };
+
+  const cancelEvent = async ({
+    host,
+    eventPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await program.methods
+      .cancelEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+
+    await sendTransaction(transaction, host);
+  };
+
   it("creates an event account", async () => {
     const host = anchor.web3.Keypair.generate();
     const {
@@ -424,6 +463,90 @@ describe("noflake", () => {
       }),
       "ReservationNotCancellable"
     );
+  });
+
+  it("does not allow cancelling a reservation after the cutoff time", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+      startTimeValue: 4_102_444_800,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+
+    await expectAnchorError(
+      cancelReservation({
+        host,
+        eventPda,
+        reservationPda: reservation,
+      }),
+      "ReservationCancellationClosed"
+    );
+  });
+
+  it("allows a host to undo a check-in before settlement starts", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await undoCheckIn({
+      host,
+      eventPda,
+      reservationPda: reservation,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const reservationAccount = await program.account.reservationAccount.fetch(
+      reservation
+    );
+
+    expect(event.checkedInCount).to.equal(0);
+    expect(enumVariant(reservationAccount.status as Record<string, unknown>)).to.equal(
+      "reserved"
+    );
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("open");
+  });
+
+  it("allows a host to cancel an event before settlement and marks the event cancelled", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+    });
+
+    await reserveSeat(eventPda, attendee);
+
+    await cancelEvent({
+      host,
+      eventPda,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("cancelled");
   });
 
   it("settles checked-in and no-show reservations in strict mode", async () => {

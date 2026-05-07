@@ -93,6 +93,30 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn undo_check_in(ctx: Context<UndoCheckIn>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+        let reservation = &mut ctx.accounts.reservation;
+
+        require!(
+            matches!(event.status, EventStatus::Open | EventStatus::Full | EventStatus::InProgress),
+            NoflakeError::EventCheckInClosed
+        );
+        require!(
+            reservation.status == ReservationStatus::CheckedIn,
+            NoflakeError::ReservationNotCheckedIn
+        );
+
+        reservation.status = ReservationStatus::Reserved;
+        event.checked_in_count = event.checked_in_count.saturating_sub(1);
+        event.status = if event.reserved_count >= event.seat_count {
+            EventStatus::Full
+        } else {
+            EventStatus::Open
+        };
+
+        Ok(())
+    }
+
     pub fn cancel_reservation(ctx: Context<CancelReservation>) -> Result<()> {
         let event = &mut ctx.accounts.event;
         let reservation = &mut ctx.accounts.reservation;
@@ -106,6 +130,10 @@ pub mod noflake {
                 ReservationStatus::Reserved | ReservationStatus::Waitlisted
             ),
             NoflakeError::ReservationNotCancellable
+        );
+        require!(
+            Clock::get()?.unix_timestamp < event.cutoff_time,
+            NoflakeError::ReservationCancellationClosed
         );
 
         let cancelled_reserved = reservation.status == ReservationStatus::Reserved;
@@ -148,6 +176,18 @@ pub mod noflake {
             EventStatus::Open
         };
 
+        Ok(())
+    }
+
+    pub fn cancel_event(ctx: Context<CancelEvent>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+
+        require!(
+            matches!(event.status, EventStatus::Open | EventStatus::Full | EventStatus::InProgress),
+            NoflakeError::EventCancellationClosed
+        );
+
+        event.status = EventStatus::Cancelled;
         Ok(())
     }
 
@@ -260,6 +300,15 @@ pub struct CheckIn<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UndoCheckIn<'info> {
+    pub host: Signer<'info>,
+    #[account(mut, has_one = host)]
+    pub event: Account<'info, EventAccount>,
+    #[account(mut, has_one = event)]
+    pub reservation: Account<'info, ReservationAccount>,
+}
+
+#[derive(Accounts)]
 pub struct CancelReservation<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
@@ -277,6 +326,13 @@ pub struct SettleReservation<'info> {
     pub event: Account<'info, EventAccount>,
     #[account(mut, has_one = event)]
     pub reservation: Account<'info, ReservationAccount>,
+}
+
+#[derive(Accounts)]
+pub struct CancelEvent<'info> {
+    pub host: Signer<'info>,
+    #[account(mut, has_one = host)]
+    pub event: Account<'info, EventAccount>,
 }
 
 #[derive(Accounts)]
@@ -353,6 +409,8 @@ pub enum EventStatus {
 pub enum NoflakeError {
     #[msg("Reservation must be in reserved state.")]
     ReservationNotReserved,
+    #[msg("Reservation must be in checked-in state.")]
+    ReservationNotCheckedIn,
     #[msg("Reservation has already been settled.")]
     ReservationAlreadySettled,
     #[msg("Reservation cannot be settled from its current state.")]
@@ -369,8 +427,12 @@ pub enum NoflakeError {
     EventSettlementTooEarly,
     #[msg("Reservation cannot be cancelled from its current state.")]
     ReservationNotCancellable,
+    #[msg("Reservation cancellation is closed after the cutoff time.")]
+    ReservationCancellationClosed,
     #[msg("Provided waitlist promotion account is invalid.")]
     InvalidWaitlistPromotion,
+    #[msg("Event cancellation is closed.")]
+    EventCancellationClosed,
     #[msg("Event is not ready to finalize.")]
     EventNotReadyToFinalize,
 }
