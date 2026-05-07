@@ -10,6 +10,7 @@ type SettlementReservation = {
 type SettlementEvent = {
   id: string;
   settlementMode: SettlementMode;
+  sponsorPoolAmount?: number;
 };
 
 type SettleInput = {
@@ -34,6 +35,10 @@ export function createSettlementService() {
         event.settlementMode === "PARTY" && checkedInReservations.length > 0
           ? noShowPool / checkedInReservations.length
           : 0;
+      const sponsorBonusPerAttendee =
+        event.settlementMode === "SPONSOR" && checkedInReservations.length > 0
+          ? (event.sponsorPoolAmount ?? 0) / checkedInReservations.length
+          : 0;
 
       return {
         eventId: event.id,
@@ -48,9 +53,11 @@ export function createSettlementService() {
             ? noShowPool
             : 0,
         partyBonusPerAttendee,
+        sponsorBonusPerAttendee,
         totalReturnedToAttendees:
           checkedInReservations.reduce((sum, reservation) => sum + reservation.paidAmount, 0) +
-          partyBonusPerAttendee * checkedInReservations.length,
+          partyBonusPerAttendee * checkedInReservations.length +
+          sponsorBonusPerAttendee * checkedInReservations.length,
         distributionStatus: "COMPLETED" as const
       };
     }

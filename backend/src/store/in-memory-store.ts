@@ -10,6 +10,7 @@ export type EventRecord = {
   seatCount: number;
   cutoffTime: string;
   settlementMode: SettlementMode;
+  sponsorPoolAmount?: number;
   status: EventStatus;
 };
 

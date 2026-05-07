@@ -6,6 +6,10 @@ const FRONTEND_BASE_URL = "http://127.0.0.1:3000";
 export function createEventService(store: InMemoryStore) {
   return {
     createEvent(input: CreateEventInput): EventRecord {
+      if (input.settlementMode === "SPONSOR" && (!input.sponsorPoolAmount || input.sponsorPoolAmount <= 0)) {
+        throw new Error("Sponsor pool is required for sponsor mode");
+      }
+
       const event: EventRecord = {
         ...input,
         id: `evt_${store.events.length + 1}`,

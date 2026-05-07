@@ -9,6 +9,7 @@ export type CreateEventInput = {
   seatCount: number;
   cutoffTime: string;
   settlementMode: "STRICT" | "PARTY" | "SPONSOR";
+  sponsorPoolAmount?: number;
 };
 
 export type EventDetails = CreateEventInput & {
@@ -56,6 +57,7 @@ export type SettlementSummary = {
   refundedAmount: number;
   forfeitedAmount: number;
   partyBonusPerAttendee?: number;
+  sponsorBonusPerAttendee?: number;
   totalReturnedToAttendees?: number;
   distributionStatus: "COMPLETED" | "PENDING";
 };

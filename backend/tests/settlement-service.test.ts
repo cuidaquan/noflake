@@ -29,4 +29,16 @@ describe("settlement service", () => {
     expect(result.forfeitedAmount).toBe(0);
     expect(result.partyBonusPerAttendee).toBe(10);
   });
+
+  it("adds sponsor bonus to checked-in attendees in sponsor mode", () => {
+    const result = createSettlementService().settle({
+      event: { id: "evt_1", settlementMode: "SPONSOR", sponsorPoolAmount: 20 },
+      reservations: [
+        { id: "a", attendeeWallet: "wallet-1", status: "CHECKED_IN", paidAmount: 20 },
+        { id: "b", attendeeWallet: "wallet-2", status: "CHECKED_IN", paidAmount: 20 }
+      ]
+    });
+
+    expect(result.sponsorBonusPerAttendee).toBe(10);
+  });
 });
