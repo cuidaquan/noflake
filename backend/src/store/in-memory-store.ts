@@ -19,6 +19,9 @@ export type ReservationRecord = {
   attendeeWallet: string;
   status: ReservationStatus;
   paidAmount: number;
+  createdAt: string;
+  checkedInAt: string | null;
+  waitlistOrder: number | null;
 };
 
 export type InMemoryStore = {

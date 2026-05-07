@@ -51,6 +51,15 @@ export function buildServer() {
     res.status(200).json(reservations);
   });
 
+  app.post("/events/:eventId/reservations/cancel", (req, res) => {
+    const result = reservationService.cancelReservation(
+      req.params.eventId,
+      req.body.attendeeWallet ?? "demo-attendee-wallet"
+    );
+
+    res.status(200).json(result);
+  });
+
   app.post("/events/:eventId/check-in", (req, res) => {
     const reservation = reservationService.checkIn(
       req.params.eventId,

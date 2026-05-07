@@ -22,6 +22,14 @@ export type ReservationDetails = {
   attendeeWallet: string;
   status: string;
   paidAmount: number;
+  createdAt: string;
+  checkedInAt: string | null;
+  waitlistOrder: number | null;
+};
+
+export type CancellationResult = {
+  cancelled: ReservationDetails;
+  promoted?: ReservationDetails;
 };
 
 export type SettlementSummary = {
@@ -118,6 +126,25 @@ export async function reserveSeat(
 
   if (!response.ok) {
     throw new Error(`Reservation failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function cancelReservation(
+  eventId: string,
+  attendeeWallet: string
+): Promise<CancellationResult> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/reservations/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ attendeeWallet })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Cancellation failed: ${response.status}`);
   }
 
   return response.json();

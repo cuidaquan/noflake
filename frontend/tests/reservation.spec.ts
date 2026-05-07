@@ -8,3 +8,11 @@ test("attendee can reserve a seat", async ({ page }) => {
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
   await expect(page.getByText("Reservation confirmed")).toBeVisible();
 });
+
+test("attendee can cancel before cutoff", async ({ page }) => {
+  await page.goto("/events/evt_1");
+  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await page.getByRole("button", { name: "Cancel reservation" }).click();
+  await expect(page.getByText("Reservation cancelled")).toBeVisible();
+});
