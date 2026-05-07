@@ -1,15 +1,9 @@
 import type { InMemoryStore, ReservationRecord } from "../store/in-memory-store";
 
 export function createReservationService(store: InMemoryStore) {
-  function getEventReservations(eventId: string) {
-    return store.reservations.filter((reservation) => reservation.eventId === eventId);
-  }
-
-  function ensureEvent(eventId: string) {
-    let event = store.events.find((candidate) => candidate.id === eventId);
-
-    if (!event && eventId === "evt_1") {
-      event = {
+  function createDemoEvent(eventId: string) {
+    if (eventId === "evt_1") {
+      return {
         id: "evt_1",
         title: "Builder Dinner",
         hostWallet: "demo-host-wallet",
@@ -18,14 +12,28 @@ export function createReservationService(store: InMemoryStore) {
         depositAmount: 20,
         seatCount: 20,
         cutoffTime: "2026-05-20T17:00:00.000Z",
-        settlementMode: "STRICT",
-        status: "OPEN"
+        settlementMode: "STRICT" as const,
+        status: "OPEN" as const
       };
-      store.events.push(event);
     }
 
-    if (!event && eventId === "evt_party") {
-      event = {
+    if (eventId === "evt_cancel") {
+      return {
+        id: "evt_cancel",
+        title: "Builder Dinner Cancel Demo",
+        hostWallet: "demo-host-wallet",
+        venue: "Shanghai",
+        startTime: "2026-05-21T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2099-05-20T17:00:00.000Z",
+        settlementMode: "STRICT" as const,
+        status: "OPEN" as const
+      };
+    }
+
+    if (eventId === "evt_party") {
+      return {
         id: "evt_party",
         title: "Builder Party",
         hostWallet: "demo-host-wallet",
@@ -34,9 +42,26 @@ export function createReservationService(store: InMemoryStore) {
         depositAmount: 20,
         seatCount: 20,
         cutoffTime: "2026-05-20T17:00:00.000Z",
-        settlementMode: "PARTY",
-        status: "OPEN"
+        settlementMode: "PARTY" as const,
+        status: "OPEN" as const
       };
+    }
+
+    return undefined;
+  }
+
+  function getEventReservations(eventId: string) {
+    return store.reservations.filter((reservation) => reservation.eventId === eventId);
+  }
+
+  function ensureEvent(eventId: string) {
+    let event = store.events.find((candidate) => candidate.id === eventId);
+
+    if (!event) {
+      event = createDemoEvent(eventId);
+    }
+
+    if (event && !store.events.find((candidate) => candidate.id === event.id)) {
       store.events.push(event);
     }
 
@@ -44,7 +69,7 @@ export function createReservationService(store: InMemoryStore) {
   }
 
   function ensureDemoReservations(eventId: string) {
-    if (eventId !== "evt_1" && eventId !== "evt_party") {
+    if (eventId !== "evt_1" && eventId !== "evt_party" && eventId !== "evt_cancel") {
       return;
     }
 
@@ -56,10 +81,10 @@ export function createReservationService(store: InMemoryStore) {
       return;
     }
 
-    if (eventId === "evt_1") {
+    if (eventId === "evt_1" || eventId === "evt_cancel") {
       store.reservations.push(
       {
-        id: "res_1",
+        id: eventId === "evt_1" ? "res_1" : "res_cancel_1",
         eventId,
         attendeeWallet: "wallet-1",
         status: "RESERVED",
@@ -69,7 +94,7 @@ export function createReservationService(store: InMemoryStore) {
         waitlistOrder: null
       },
       {
-        id: "res_2",
+        id: eventId === "evt_1" ? "res_2" : "res_cancel_2",
         eventId,
         attendeeWallet: "wallet-2",
         status: "RESERVED",
