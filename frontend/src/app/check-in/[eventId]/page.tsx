@@ -106,6 +106,11 @@ export default function CheckInPage({ params }: CheckInPageProps) {
             <p className="inline-meta">
               Refunded: {settlement.refundedAmount} USDC • Forfeited: {settlement.forfeitedAmount} USDC
             </p>
+            {event?.settlementMode === "PARTY" ? (
+              <p className="inline-meta">
+                Party bonus: {settlement.partyBonusPerAttendee ?? 0} USDC per checked-in attendee
+              </p>
+            ) : null}
           </section>
         ) : null}
       </section>

@@ -55,6 +55,8 @@ export type SettlementSummary = {
   noShowCount: number;
   refundedAmount: number;
   forfeitedAmount: number;
+  partyBonusPerAttendee?: number;
+  totalReturnedToAttendees?: number;
   distributionStatus: "COMPLETED" | "PENDING";
 };
 

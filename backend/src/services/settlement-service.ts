@@ -26,6 +26,14 @@ export function createSettlementService() {
       const noShowReservations = reservations.filter(
         (reservation) => reservation.status === "RESERVED"
       );
+      const noShowPool = noShowReservations.reduce(
+        (sum, reservation) => sum + reservation.paidAmount,
+        0
+      );
+      const partyBonusPerAttendee =
+        event.settlementMode === "PARTY" && checkedInReservations.length > 0
+          ? noShowPool / checkedInReservations.length
+          : 0;
 
       return {
         eventId: event.id,
@@ -37,8 +45,12 @@ export function createSettlementService() {
         ),
         forfeitedAmount:
           event.settlementMode === "STRICT"
-            ? noShowReservations.reduce((sum, reservation) => sum + reservation.paidAmount, 0)
+            ? noShowPool
             : 0,
+        partyBonusPerAttendee,
+        totalReturnedToAttendees:
+          checkedInReservations.reduce((sum, reservation) => sum + reservation.paidAmount, 0) +
+          partyBonusPerAttendee * checkedInReservations.length,
         distributionStatus: "COMPLETED" as const
       };
     }

@@ -24,11 +24,27 @@ export function createReservationService(store: InMemoryStore) {
       store.events.push(event);
     }
 
+    if (!event && eventId === "evt_party") {
+      event = {
+        id: "evt_party",
+        title: "Builder Party",
+        hostWallet: "demo-host-wallet",
+        venue: "Shanghai",
+        startTime: "2026-05-20T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2026-05-20T17:00:00.000Z",
+        settlementMode: "PARTY",
+        status: "OPEN"
+      };
+      store.events.push(event);
+    }
+
     return event;
   }
 
   function ensureDemoReservations(eventId: string) {
-    if (eventId !== "evt_1") {
+    if (eventId !== "evt_1" && eventId !== "evt_party") {
       return;
     }
 
@@ -40,6 +56,7 @@ export function createReservationService(store: InMemoryStore) {
       return;
     }
 
+    if (eventId === "evt_1") {
       store.reservations.push(
       {
         id: "res_1",
@@ -58,6 +75,41 @@ export function createReservationService(store: InMemoryStore) {
         status: "RESERVED",
         paidAmount: 20,
         createdAt: "2026-05-01T10:05:00.000Z",
+        checkedInAt: null,
+        waitlistOrder: null
+      }
+    );
+      return;
+    }
+
+    store.reservations.push(
+      {
+        id: "res_party_1",
+        eventId,
+        attendeeWallet: "wallet-party-1",
+        status: "CHECKED_IN",
+        paidAmount: 20,
+        createdAt: "2026-05-01T10:00:00.000Z",
+        checkedInAt: "2026-05-01T10:15:00.000Z",
+        waitlistOrder: null
+      },
+      {
+        id: "res_party_2",
+        eventId,
+        attendeeWallet: "wallet-party-2",
+        status: "CHECKED_IN",
+        paidAmount: 20,
+        createdAt: "2026-05-01T10:05:00.000Z",
+        checkedInAt: "2026-05-01T10:20:00.000Z",
+        waitlistOrder: null
+      },
+      {
+        id: "res_party_3",
+        eventId,
+        attendeeWallet: "wallet-party-3",
+        status: "RESERVED",
+        paidAmount: 20,
+        createdAt: "2026-05-01T10:10:00.000Z",
         checkedInAt: null,
         waitlistOrder: null
       }

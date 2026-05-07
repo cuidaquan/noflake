@@ -6,3 +6,9 @@ test("organizer can check in attendee and settle event", async ({ page }) => {
   await page.getByRole("button", { name: "Settle Event" }).click();
   await expect(page.getByText("Settlement complete")).toBeVisible();
 });
+
+test("settlement page shows party bonus when the event is in party mode", async ({ page }) => {
+  await page.goto("/check-in/evt_party");
+  await page.getByRole("button", { name: "Settle Event" }).click();
+  await expect(page.getByText("Party bonus")).toBeVisible();
+});
