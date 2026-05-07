@@ -26,8 +26,11 @@ pub mod noflake {
         event.deposit_amount = deposit_amount;
         event.seat_count = seat_count;
         event.reserved_count = 0;
+        event.active_count = 0;
         event.checked_in_count = 0;
         event.settled_count = 0;
+        event.next_waitlist_order = 1;
+        event.next_waitlist_to_promote = 1;
         event.settlement_mode = settlement_mode;
         event.status = EventStatus::Open;
         event.bump = ctx.bumps.event;
@@ -51,12 +54,16 @@ pub mod noflake {
         if event.reserved_count < event.seat_count {
             reservation.status = ReservationStatus::Reserved;
             event.reserved_count = event.reserved_count.saturating_add(1);
+            event.active_count = event.active_count.saturating_add(1);
+            reservation.waitlist_order = 0;
 
             if event.reserved_count >= event.seat_count {
                 event.status = EventStatus::Full;
             }
         } else {
             reservation.status = ReservationStatus::Waitlisted;
+            reservation.waitlist_order = event.next_waitlist_order;
+            event.next_waitlist_order = event.next_waitlist_order.saturating_add(1);
             event.status = EventStatus::Full;
         }
 
@@ -83,6 +90,64 @@ pub mod noflake {
         reservation.status = ReservationStatus::CheckedIn;
         event.checked_in_count = event.checked_in_count.saturating_add(1);
         event.status = EventStatus::InProgress;
+        Ok(())
+    }
+
+    pub fn cancel_reservation(ctx: Context<CancelReservation>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+        let reservation = &mut ctx.accounts.reservation;
+        require!(
+            matches!(event.status, EventStatus::Open | EventStatus::Full),
+            NoflakeError::ReservationNotCancellable
+        );
+        require!(
+            matches!(
+                reservation.status,
+                ReservationStatus::Reserved | ReservationStatus::Waitlisted
+            ),
+            NoflakeError::ReservationNotCancellable
+        );
+
+        let cancelled_reserved = reservation.status == ReservationStatus::Reserved;
+        let cancelled_waitlist_order = reservation.waitlist_order;
+        reservation.status = ReservationStatus::Cancelled;
+        reservation.waitlist_order = 0;
+
+        if cancelled_reserved {
+            event.reserved_count = event.reserved_count.saturating_sub(1);
+            event.active_count = event.active_count.saturating_sub(1);
+
+            if let Some(promoted_reservation) = ctx.accounts.promoted_reservation.as_deref_mut() {
+                require!(
+                    promoted_reservation.event == event.key(),
+                    NoflakeError::InvalidWaitlistPromotion
+                );
+                require!(
+                    promoted_reservation.status == ReservationStatus::Waitlisted,
+                    NoflakeError::InvalidWaitlistPromotion
+                );
+                require!(
+                    promoted_reservation.waitlist_order == event.next_waitlist_to_promote,
+                    NoflakeError::InvalidWaitlistPromotion
+                );
+
+                promoted_reservation.status = ReservationStatus::Reserved;
+                promoted_reservation.waitlist_order = 0;
+                event.next_waitlist_to_promote =
+                    event.next_waitlist_to_promote.saturating_add(1);
+                event.reserved_count = event.reserved_count.saturating_add(1);
+                event.active_count = event.active_count.saturating_add(1);
+            }
+        } else if cancelled_waitlist_order == event.next_waitlist_to_promote {
+            event.next_waitlist_to_promote = event.next_waitlist_to_promote.saturating_add(1);
+        }
+
+        event.status = if event.reserved_count >= event.seat_count {
+            EventStatus::Full
+        } else {
+            EventStatus::Open
+        };
+
         Ok(())
     }
 
@@ -122,7 +187,8 @@ pub mod noflake {
         };
 
         event.settled_count = event.settled_count.saturating_add(1);
-        event.status = if event.settled_count >= event.reserved_count {
+        event.active_count = event.active_count.saturating_sub(1);
+        event.status = if event.active_count == 0 {
             EventStatus::Settling
         } else {
             EventStatus::InProgress
@@ -142,7 +208,7 @@ pub mod noflake {
             NoflakeError::EventNotReadyToFinalize
         );
         require!(
-            event.settled_count >= event.reserved_count,
+            event.active_count == 0,
             NoflakeError::EventNotReadyToFinalize
         );
 
@@ -194,6 +260,17 @@ pub struct CheckIn<'info> {
 }
 
 #[derive(Accounts)]
+pub struct CancelReservation<'info> {
+    pub host: Signer<'info>,
+    #[account(mut, has_one = host)]
+    pub event: Account<'info, EventAccount>,
+    #[account(mut, has_one = event)]
+    pub reservation: Account<'info, ReservationAccount>,
+    #[account(mut)]
+    pub promoted_reservation: Option<Account<'info, ReservationAccount>>,
+}
+
+#[derive(Accounts)]
 pub struct SettleReservation<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
@@ -223,8 +300,11 @@ pub struct EventAccount {
     pub seat_count: u16,
     pub settlement_mode: SettlementMode,
     pub reserved_count: u16,
+    pub active_count: u16,
     pub checked_in_count: u16,
     pub settled_count: u16,
+    pub next_waitlist_order: u64,
+    pub next_waitlist_to_promote: u64,
     pub status: EventStatus,
     pub bump: u8,
 }
@@ -236,6 +316,7 @@ pub struct ReservationAccount {
     pub attendee: Pubkey,
     pub status: ReservationStatus,
     pub paid_amount: u64,
+    pub waitlist_order: u64,
     pub bump: u8,
 }
 
@@ -286,6 +367,10 @@ pub enum NoflakeError {
     EventSettlementClosed,
     #[msg("Event settlement cannot start before the cutoff time.")]
     EventSettlementTooEarly,
+    #[msg("Reservation cannot be cancelled from its current state.")]
+    ReservationNotCancellable,
+    #[msg("Provided waitlist promotion account is invalid.")]
+    InvalidWaitlistPromotion,
     #[msg("Event is not ready to finalize.")]
     EventNotReadyToFinalize,
 }

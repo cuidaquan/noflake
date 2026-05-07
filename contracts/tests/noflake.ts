@@ -196,6 +196,30 @@ describe("noflake", () => {
     return reservationPda;
   };
 
+  const cancelReservation = async ({
+    host,
+    eventPda,
+    reservationPda,
+    promotedReservationPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+    promotedReservationPda?: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await program.methods
+      .cancelReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: reservationPda,
+        promotedReservation: promotedReservationPda,
+      })
+      .transaction();
+
+    await sendTransaction(transaction, host);
+  };
+
   it("creates an event account", async () => {
     const host = anchor.web3.Keypair.generate();
     const {
@@ -282,6 +306,123 @@ describe("noflake", () => {
     );
     expect(enumVariant(reservationTwo.status as Record<string, unknown>)).to.equal(
       "waitlisted"
+    );
+  });
+
+  it("promotes the earliest waitlisted attendee after a cancellation", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+    });
+
+    const firstReservation = await reserveSeat(eventPda, attendeeOne);
+    const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    await cancelReservation({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+      promotedReservationPda: secondReservation,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const cancelledReservation = await program.account.reservationAccount.fetch(
+      firstReservation
+    );
+    const promotedReservation = await program.account.reservationAccount.fetch(
+      secondReservation
+    );
+
+    expect(enumVariant(cancelledReservation.status as Record<string, unknown>)).to.equal(
+      "cancelled"
+    );
+    expect(enumVariant(promotedReservation.status as Record<string, unknown>)).to.equal(
+      "reserved"
+    );
+    expect(event.reservedCount).to.equal(1);
+  });
+
+  it("does not count cancelled reservations toward finalization readiness", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const firstReservation = await reserveSeat(eventPda, attendeeOne);
+    const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    await cancelReservation({
+      host,
+      eventPda,
+      reservationPda: secondReservation,
+    });
+
+    const settleTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation,
+      })
+      .transaction();
+    await sendTransaction(settleTransaction, host);
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+    await sendTransaction(finalizeTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("settled");
+  });
+
+  it("rejects cancelling a reservation after settlement has started", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const firstReservation = await reserveSeat(eventPda, attendeeOne);
+    const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    const settleTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation,
+      })
+      .transaction();
+    await sendTransaction(settleTransaction, host);
+
+    await expectAnchorError(
+      cancelReservation({
+        host,
+        eventPda,
+        reservationPda: secondReservation,
+      }),
+      "ReservationNotCancellable"
     );
   });
 
