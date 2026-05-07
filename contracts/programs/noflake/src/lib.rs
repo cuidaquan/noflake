@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::clock::Clock;
 
 declare_id!("F5umdtne4aMhcmPpeV8G8ap1EhMe79mqUJET8EVJUmcA");
 
@@ -69,7 +70,7 @@ pub mod noflake {
         require!(
             matches!(
                 event.status,
-                EventStatus::Open | EventStatus::Full | EventStatus::InProgress
+                EventStatus::Open | EventStatus::Full
             ),
             NoflakeError::EventCheckInClosed
         );
@@ -98,6 +99,10 @@ pub mod noflake {
                     | EventStatus::Settling
             ),
             NoflakeError::EventSettlementClosed
+        );
+        require!(
+            Clock::get()?.unix_timestamp >= event.cutoff_time,
+            NoflakeError::EventSettlementTooEarly
         );
 
         reservation.status = match reservation.status {
@@ -279,6 +284,8 @@ pub enum NoflakeError {
     EventCheckInClosed,
     #[msg("Event settlement is closed.")]
     EventSettlementClosed,
+    #[msg("Event settlement cannot start before the cutoff time.")]
+    EventSettlementTooEarly,
     #[msg("Event is not ready to finalize.")]
     EventNotReadyToFinalize,
 }

@@ -475,6 +475,71 @@ describe("noflake", () => {
     );
   });
 
+  it("does not allow settlement before cutoff time", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: strictMode,
+      startTimeValue: 4_102_444_800,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+
+    const settleTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(settleTransaction, host),
+      "EventSettlementTooEarly"
+    );
+  });
+
+  it("does not allow check-in after settlement has started", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const firstReservation = await reserveSeat(eventPda, attendeeOne);
+    const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    const settleFirstTransaction = await program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: firstReservation,
+      })
+      .transaction();
+    await sendTransaction(settleFirstTransaction, host);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: secondReservation,
+      })
+      .transaction();
+
+    await expectAnchorError(sendTransaction(checkInTransaction, host), "EventCheckInClosed");
+  });
+
   it("prevents check-in after an event has been finalized", async () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();
