@@ -37,6 +37,17 @@ export function buildServer() {
     res.status(200).json(event);
   });
 
+  app.get("/events/:eventId/dashboard", (req, res) => {
+    const dashboard = eventService.getDashboard(req.params.eventId);
+
+    if (!dashboard) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    res.status(200).json(dashboard);
+  });
+
   app.post("/events/:eventId/reservations", (req, res) => {
     const reservation = reservationService.reserveSeat(
       req.params.eventId,

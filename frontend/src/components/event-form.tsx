@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createEvent } from "../lib/api";
+import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
 
 type CreatedEvent = {
   id: string;
@@ -9,13 +9,18 @@ type CreatedEvent = {
   venue: string;
   depositAmount: number;
   seatCount: number;
+  settlementMode: "STRICT" | "PARTY" | "SPONSOR";
 };
 
 export function EventForm() {
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
   const [depositAmount, setDepositAmount] = useState("20");
+  const [seatCount, setSeatCount] = useState("20");
+  const [cutoffTime, setCutoffTime] = useState("2026-05-20T17:00:00.000Z");
+  const [settlementMode, setSettlementMode] = useState<"STRICT" | "PARTY" | "SPONSOR">("STRICT");
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
+  const [dashboard, setDashboard] = useState<EventDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -31,12 +36,13 @@ export function EventForm() {
         venue,
         startTime: "2026-05-20T19:00:00.000Z",
         depositAmount: Number(depositAmount),
-        seatCount: 20,
-        cutoffTime: "2026-05-20T17:00:00.000Z",
-        settlementMode: "STRICT"
+        seatCount: Number(seatCount),
+        cutoffTime,
+        settlementMode
       });
 
       setCreatedEvent(response);
+      setDashboard(await getEventDashboard(response.id));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create event");
     } finally {
@@ -65,6 +71,30 @@ export function EventForm() {
           />
         </label>
 
+        <label className="field">
+          <span>Seat Count</span>
+          <input value={seatCount} onChange={(event) => setSeatCount(event.target.value)} />
+        </label>
+
+        <label className="field">
+          <span>Cutoff Time</span>
+          <input value={cutoffTime} onChange={(event) => setCutoffTime(event.target.value)} />
+        </label>
+
+        <label className="field">
+          <span>Settlement Mode</span>
+          <select
+            value={settlementMode}
+            onChange={(event) =>
+              setSettlementMode(event.target.value as "STRICT" | "PARTY" | "SPONSOR")
+            }
+          >
+            <option value="STRICT">STRICT</option>
+            <option value="PARTY">PARTY</option>
+            <option value="SPONSOR">SPONSOR</option>
+          </select>
+        </label>
+
         <button className="primary-action" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Creating..." : "Create Event"}
         </button>
@@ -79,7 +109,12 @@ export function EventForm() {
           <p>{createdEvent.venue}</p>
           <p>{createdEvent.depositAmount} USDC deposit</p>
           <p>{createdEvent.seatCount} seats</p>
-          <p>Share link: /events/{createdEvent.id}</p>
+          <p>Mode: {createdEvent.settlementMode}</p>
+          <p>Share link: {dashboard?.shareUrl ?? `/events/${createdEvent.id}`}</p>
+          <p>QR payload: {dashboard?.qrValue ?? `/events/${createdEvent.id}`}</p>
+          <p>Reserved: {dashboard?.counts.reserved ?? 0}</p>
+          <p>Waitlisted: {dashboard?.counts.waitlisted ?? 0}</p>
+          <p>Checked In: {dashboard?.counts.checkedIn ?? 0}</p>
         </section>
       ) : null}
     </div>

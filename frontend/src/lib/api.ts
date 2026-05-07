@@ -16,6 +16,23 @@ export type EventDetails = CreateEventInput & {
   status: "OPEN" | "SETTLED";
 };
 
+export type EventDashboard = {
+  eventId: string;
+  title: string;
+  settlementMode: "STRICT" | "PARTY" | "SPONSOR";
+  seatCount: number;
+  shareUrl: string;
+  qrValue: string;
+  counts: {
+    reserved: number;
+    waitlisted: number;
+    checkedIn: number;
+    noShow: number;
+    refunded: number;
+    forfeited: number;
+  };
+};
+
 export type ReservationDetails = {
   id: string;
   eventId: string;
@@ -126,6 +143,18 @@ export async function reserveSeat(
 
   if (!response.ok) {
     throw new Error(`Reservation failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function getEventDashboard(eventId: string): Promise<EventDashboard> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/dashboard`, {
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load event dashboard: ${response.status}`);
   }
 
   return response.json();
