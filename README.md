@@ -9,7 +9,7 @@ This repository currently ships a demo-ready MVP with:
 - attendee reservation with a mock wallet connect step
 - organizer check-in and settlement flow
 - shared domain schemas across frontend and backend
-- a scaffolded Anchor contract package for the onchain layer
+- an Anchor contract package for event lifecycle, waitlist, cancellation, and settlement state
 
 ## Product Scope
 
@@ -18,6 +18,7 @@ MVP focus:
 - event creation
 - deposit-based seat reservation
 - waitlist handling
+- reservation cancellation with earliest-waitlist promotion
 - organizer check-in
 - end-of-event automated settlement
 
@@ -48,8 +49,23 @@ Out of scope for MVP:
 1. Open `/organizer` and create an event.
 2. Open `/events/evt_1` and connect the mock wallet.
 3. Reserve a seat with the refundable USDC deposit flow.
-4. Open `/check-in/evt_1` and check in attendees.
-5. Settle the event and show refund / forfeiture summary.
+4. Fill the last seat and explain that later attendees are waitlisted.
+5. Open `/check-in/evt_1` and check in attendees.
+6. Settle the event and show refund / forfeiture summary.
+
+## Contract Status
+
+The onchain package currently covers:
+
+- event initialization with per-host multi-event support
+- reserved and waitlisted seat allocation
+- reservation cancellation
+- earliest-waitlist promotion after a reserved seat is cancelled
+- organizer check-in before settlement
+- cutoff-gated settlement
+- finalization only after all active reservations are settled
+
+Deposit vault transfers and real USDC movement are still a follow-up layer on top of the current account and state machine logic.
 
 ## Local Development
 
@@ -116,7 +132,7 @@ cd contracts
 cargo check
 ```
 
-`anchor test` is planned, but it requires local `anchor` and `solana` CLIs to be installed and available on `PATH`.
+Full Anchor integration tests require local `anchor` and `solana` CLIs to be installed and available on `PATH`.
 
 ## Solana / Anchor Local Development
 

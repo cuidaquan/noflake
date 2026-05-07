@@ -69,6 +69,8 @@ cd contracts
 cargo check
 ```
 
+This confirms the Rust program builds, but it does not run the Anchor integration suite.
+
 ## Run Contract Tests
 
 If `anchor` and `solana` are installed and available on `PATH`:
@@ -79,3 +81,12 @@ anchor test
 ```
 
 If those CLIs are not installed, the Anchor scaffold can still be validated with `cargo check`, but full program tests will be unavailable.
+
+The current contract test suite covers:
+
+- multiple events per host
+- waitlist placement after sellout
+- cancellation and waitlist promotion
+- cutoff-gated settlement
+- settlement-before-finalization rules
+- no check-in once settlement has started or the event is finalized

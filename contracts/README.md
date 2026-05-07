@@ -10,10 +10,13 @@ Included today:
 - reservation account model
 - `initialize_event`
 - `reserve_seat`
+- `cancel_reservation`
 - `check_in`
 - `settle_reservation`
 - `finalize_event`
 - waitlist handling when an event is full
+- earliest-waitlist promotion after a cancellation
+- active reservation tracking for safe settlement and finalization
 - strict / party / sponsor settlement mode state
 - event and reservation status guardrails
 
@@ -135,12 +138,14 @@ What it does:
 
 ## About `anchor test`
 
-`anchor test` now works in this repo, but on this machine it may still print a trailing `websocket error` after the test has already passed.
+`anchor test` is the intended full integration check for this repo, but it only works on machines where both `anchor` and `solana` CLIs are installed and exposed on `PATH`.
+
+On machines with that toolchain, the run may still print a trailing `websocket error` after the test has already passed.
 
 If you see:
 
 ```text
-1 passing
+14 passing
 ```
 
 the test run is successful.
@@ -229,12 +234,19 @@ The happy-path test result looks like:
 ```text
 noflake
   ✔ creates an event account
+  ✔ allows the same host to create multiple events
   ✔ waitlists attendees after capacity is reached
+  ✔ promotes the earliest waitlisted attendee after a cancellation
+  ✔ does not count cancelled reservations toward finalization readiness
+  ✔ rejects cancelling a reservation after settlement has started
   ✔ settles checked-in and no-show reservations in strict mode
   ✔ marks no-shows without forfeiture in party mode
   ✔ rejects settling a waitlisted reservation
   ✔ requires settling before finalizing an event
+  ✔ does not finalize before all reserved attendees are settled
+  ✔ does not allow settlement before cutoff time
+  ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-7 passing
+14 passing
 ```
