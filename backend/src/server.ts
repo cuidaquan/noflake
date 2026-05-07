@@ -80,6 +80,15 @@ export function buildServer() {
     res.status(200).json(reservation);
   });
 
+  app.post("/events/:eventId/check-in/undo", (req, res) => {
+    const reservation = reservationService.undoCheckIn(
+      req.params.eventId,
+      req.body.attendeeWallet ?? "wallet-1"
+    );
+
+    res.status(200).json(reservation);
+  });
+
   app.post("/events/:eventId/settle", (req, res) => {
     const event =
       eventService.getEventById(req.params.eventId) ??
@@ -103,6 +112,20 @@ export function buildServer() {
 
     event.status = "SETTLED";
     res.status(200).json(summary);
+  });
+
+  app.post("/events/:eventId/cancel", (req, res) => {
+    const event = eventService.cancelEvent(req.params.eventId);
+    const reservations = reservationService.getReservations(req.params.eventId);
+
+    for (const reservation of reservations) {
+      if (reservation.status === "RESERVED" || reservation.status === "CHECKED_IN") {
+        reservation.status = "REFUNDED";
+        reservation.checkedInAt = null;
+      }
+    }
+
+    res.status(200).json(event);
   });
 
   return app;

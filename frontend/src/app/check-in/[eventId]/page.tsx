@@ -2,10 +2,12 @@
 
 import { use, useEffect, useState } from "react";
 import {
+  cancelEvent,
   checkInAttendee,
   getEvent,
   getReservations,
   settleEvent,
+  undoCheckInAttendee,
   type EventDetails,
   type ReservationDetails,
   type SettlementSummary
@@ -24,6 +26,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null);
   const [loadingWallet, setLoadingWallet] = useState<string | null>(null);
   const [isSettling, setIsSettling] = useState(false);
+  const [eventCancelled, setEventCancelled] = useState(false);
 
   useEffect(() => {
     async function loadPage() {
@@ -65,6 +68,29 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     }
   }
 
+  async function handleUndoCheckIn(attendeeWallet: string) {
+    setLoadingWallet(attendeeWallet);
+
+    try {
+      const updatedReservation = await undoCheckInAttendee(eventId, attendeeWallet);
+      setReservations((current) =>
+        current.map((reservation) =>
+          reservation.id === updatedReservation.id ? updatedReservation : reservation
+        )
+      );
+    } finally {
+      setLoadingWallet(null);
+    }
+  }
+
+  async function handleCancelEvent() {
+    const updatedEvent = await cancelEvent(eventId);
+    const updatedReservations = await getReservations(eventId);
+    setEvent(updatedEvent);
+    setReservations(updatedReservations);
+    setEventCancelled(true);
+  }
+
   return (
     <main className="page-shell">
       <section className="hero-card">
@@ -90,6 +116,17 @@ export default function CheckInPage({ params }: CheckInPageProps) {
                   ? `Checking In ${reservation.attendeeWallet}...`
                   : `Check In ${reservation.attendeeWallet}`}
               </button>
+              {reservation.status === "CHECKED_IN" ? (
+                <button
+                  className="secondary-action"
+                  onClick={() => handleUndoCheckIn(reservation.attendeeWallet)}
+                  disabled={loadingWallet === reservation.attendeeWallet}
+                >
+                  {loadingWallet === reservation.attendeeWallet
+                    ? `Undoing ${reservation.attendeeWallet}...`
+                    : `Undo Check-In ${reservation.attendeeWallet}`}
+                </button>
+              ) : null}
             </article>
           ))}
         </section>
@@ -98,7 +135,12 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           <button className="primary-action" onClick={handleSettlement} disabled={isSettling}>
             {isSettling ? "Settling..." : "Settle Event"}
           </button>
+          <button className="secondary-action" onClick={handleCancelEvent}>
+            Cancel Event
+          </button>
         </div>
+
+        {eventCancelled ? <p className="success-text">Event cancelled</p> : null}
 
         {settlement ? (
           <section className="panel settlement-panel">

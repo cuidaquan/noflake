@@ -121,6 +121,25 @@ export async function checkInAttendee(
   return response.json();
 }
 
+export async function undoCheckInAttendee(
+  eventId: string,
+  attendeeWallet: string
+): Promise<ReservationDetails> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/check-in/undo`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ attendeeWallet })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to undo check in attendee: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function settleEvent(eventId: string): Promise<SettlementSummary> {
   const response = await fetch(`${API_BASE_URL}/events/${eventId}/settle`, {
     method: "POST"
@@ -178,6 +197,18 @@ export async function cancelReservation(
 
   if (!response.ok) {
     throw new Error(`Cancellation failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function cancelEvent(eventId: string): Promise<EventDetails> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/cancel`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to cancel event: ${response.status}`);
   }
 
   return response.json();

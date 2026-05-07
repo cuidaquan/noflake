@@ -24,6 +24,17 @@ export function createEventService(store: InMemoryStore) {
       return store.events.find((event) => event.id === eventId);
     },
 
+    cancelEvent(eventId: string): EventRecord {
+      const event = store.events.find((candidate) => candidate.id === eventId);
+
+      if (!event) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+
+      event.status = "CANCELLED";
+      return event;
+    },
+
     getDashboard(eventId: string) {
       const event = store.events.find((candidate) => candidate.id === eventId);
 

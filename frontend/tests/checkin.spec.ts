@@ -12,3 +12,12 @@ test("settlement page shows party bonus when the event is in party mode", async 
   await page.getByRole("button", { name: "Settle Event" }).click();
   await expect(page.getByText("Party bonus")).toBeVisible();
 });
+
+test("organizer can undo check-in and cancel an event", async ({ page }) => {
+  await page.goto("/check-in/evt_undo");
+  await page.getByRole("button", { name: "Check In wallet-undo-1" }).click();
+  await page.getByRole("button", { name: "Undo Check-In wallet-undo-1" }).click();
+  await expect(page.getByText("Status: RESERVED")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel Event" }).click();
+  await expect(page.getByText("Event cancelled")).toBeVisible();
+});

@@ -47,6 +47,21 @@ export function createReservationService(store: InMemoryStore) {
       };
     }
 
+    if (eventId === "evt_undo") {
+      return {
+        id: "evt_undo",
+        title: "Builder Undo Demo",
+        hostWallet: "demo-host-wallet",
+        venue: "Shanghai",
+        startTime: "2026-05-22T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2099-05-20T17:00:00.000Z",
+        settlementMode: "STRICT" as const,
+        status: "OPEN" as const
+      };
+    }
+
     return undefined;
   }
 
@@ -69,7 +84,12 @@ export function createReservationService(store: InMemoryStore) {
   }
 
   function ensureDemoReservations(eventId: string) {
-    if (eventId !== "evt_1" && eventId !== "evt_party" && eventId !== "evt_cancel") {
+    if (
+      eventId !== "evt_1" &&
+      eventId !== "evt_party" &&
+      eventId !== "evt_cancel" &&
+      eventId !== "evt_undo"
+    ) {
       return;
     }
 
@@ -104,6 +124,22 @@ export function createReservationService(store: InMemoryStore) {
         waitlistOrder: null
       }
     );
+      return;
+    }
+
+    if (eventId === "evt_undo") {
+      store.reservations.push(
+        {
+          id: "res_undo_1",
+          eventId,
+          attendeeWallet: "wallet-undo-1",
+          status: "RESERVED",
+          paidAmount: 20,
+          createdAt: "2026-05-01T10:00:00.000Z",
+          checkedInAt: null,
+          waitlistOrder: null
+        }
+      );
       return;
     }
 
@@ -257,6 +293,24 @@ export function createReservationService(store: InMemoryStore) {
 
       reservation.status = "CHECKED_IN";
       reservation.checkedInAt = new Date().toISOString();
+      return reservation;
+    },
+
+    undoCheckIn(eventId: string, attendeeWallet: string): ReservationRecord {
+      const reservation = this.getReservations(eventId).find(
+        (candidate) => candidate.attendeeWallet === attendeeWallet
+      );
+
+      if (!reservation) {
+        throw new Error(`Reservation not found for ${attendeeWallet}`);
+      }
+
+      if (reservation.status !== "CHECKED_IN") {
+        throw new Error(`Reservation is not checked in for ${attendeeWallet}`);
+      }
+
+      reservation.status = "RESERVED";
+      reservation.checkedInAt = null;
       return reservation;
     }
   };
