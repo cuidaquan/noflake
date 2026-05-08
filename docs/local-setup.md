@@ -87,6 +87,30 @@ The current contract test suite covers:
 - multiple events per host
 - waitlist placement after sellout
 - cancellation and waitlist promotion
+- reservation cancellation blocked after cutoff
+- undo check-in before settlement
+- host event cancellation
 - cutoff-gated settlement
 - settlement-before-finalization rules
 - no check-in once settlement has started or the event is finalized
+
+## Current Machine Limitations
+
+On this machine as of `2026-05-08`:
+
+- `anchor` is not available on `PATH`
+- `solana` is not available on `PATH`
+
+That means the following commands cannot currently be executed here:
+
+```powershell
+cd contracts
+anchor test
+```
+
+```powershell
+cd contracts
+npm run test:localnet
+```
+
+Use `cargo check` for static validation on this machine, and run the full Anchor suite on a machine where both CLIs are installed.

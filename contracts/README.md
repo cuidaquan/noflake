@@ -12,11 +12,15 @@ Included today:
 - `reserve_seat`
 - `cancel_reservation`
 - `check_in`
+- `undo_check_in`
+- `cancel_event`
 - `settle_reservation`
 - `finalize_event`
 - waitlist handling when an event is full
 - earliest-waitlist promotion after a cancellation
 - active reservation tracking for safe settlement and finalization
+- cutoff-gated reservation cancellation
+- host-side event cancellation state
 - strict / party / sponsor settlement mode state
 - event and reservation status guardrails
 
@@ -239,6 +243,9 @@ noflake
   ✔ promotes the earliest waitlisted attendee after a cancellation
   ✔ does not count cancelled reservations toward finalization readiness
   ✔ rejects cancelling a reservation after settlement has started
+  ✔ does not allow cancelling a reservation after the cutoff time
+  ✔ allows a host to undo a check-in before settlement starts
+  ✔ allows a host to cancel an event before settlement and marks the event cancelled
   ✔ settles checked-in and no-show reservations in strict mode
   ✔ marks no-shows without forfeiture in party mode
   ✔ rejects settling a waitlisted reservation
@@ -248,5 +255,5 @@ noflake
   ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-14 passing
+17 passing
 ```
