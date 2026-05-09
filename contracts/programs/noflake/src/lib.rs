@@ -160,9 +160,33 @@ pub mod noflake {
             Clock::get()?.unix_timestamp < event.cutoff_time,
             NoflakeError::ReservationCancellationClosed
         );
+        require!(
+            ctx.accounts.deposit_mint_account.key() == event.deposit_mint,
+            NoflakeError::InvalidDepositMint
+        );
 
         let cancelled_reserved = reservation.status == ReservationStatus::Reserved;
         let cancelled_waitlist_order = reservation.waitlist_order;
+
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.event_vault_token.to_account_info(),
+                    mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                    to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                    authority: ctx.accounts.vault_authority.to_account_info(),
+                },
+                &[&[
+                    b"vault",
+                    event.key().as_ref(),
+                    &[event.vault_authority_bump],
+                ]],
+            ),
+            reservation.paid_amount,
+            ctx.accounts.deposit_mint_account.decimals,
+        )?;
+
         reservation.status = ReservationStatus::Cancelled;
         reservation.waitlist_order = 0;
 
@@ -380,10 +404,36 @@ pub struct CancelReservation<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
     pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump = event.vault_authority_bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = reservation.attendee,
+        associated_token::token_program = token_program,
+    )]
+    pub attendee_deposit_token: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, has_one = event)]
     pub reservation: Account<'info, ReservationAccount>,
     #[account(mut)]
     pub promoted_reservation: Option<Account<'info, ReservationAccount>>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

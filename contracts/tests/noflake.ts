@@ -215,6 +215,24 @@ describe("noflake", () => {
     return tokenAccount.amount;
   };
 
+  const getFundingConfig = (eventPda: anchor.web3.PublicKey) => {
+    const fundingConfig = eventFundingConfig.get(eventPda.toBase58());
+
+    if (!fundingConfig) {
+      throw new Error(`missing funding config for event ${eventPda.toBase58()}`);
+    }
+
+    return fundingConfig;
+  };
+
+  const getAttendeeDepositAta = (
+    eventPda: anchor.web3.PublicKey,
+    attendee: anchor.web3.PublicKey
+  ) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    return getAssociatedTokenAddressSync(fundingConfig.depositMint, attendee);
+  };
+
   const waitForUnixTime = async (targetUnixTime: number) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const clock = await provider.connection.getBlockTime(
@@ -402,13 +420,25 @@ describe("noflake", () => {
     reservationPda: anchor.web3.PublicKey;
     promotedReservationPda?: anchor.web3.PublicKey;
   }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const reservation = await program.account.reservationAccount.fetch(reservationPda);
+    const attendeeDepositAta = getAssociatedTokenAddressSync(
+      fundingConfig.depositMint,
+      reservation.attendee
+    );
+
     const transaction = await program.methods
       .cancelReservation()
       .accountsPartial({
         host: host.publicKey,
         event: eventPda,
+        vaultAuthority: fundingConfig.vaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        eventVaultToken: fundingConfig.eventVaultAta,
+        attendeeDepositToken: attendeeDepositAta,
         reservation: reservationPda,
         promotedReservation: promotedReservationPda ?? null,
+        tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
 
@@ -603,6 +633,12 @@ describe("noflake", () => {
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+    const fundingConfig = getFundingConfig(eventPda);
+    const attendeeOneDepositAta = getAttendeeDepositAta(eventPda, attendeeOne.publicKey);
+    const attendeeTwoDepositAta = getAttendeeDepositAta(eventPda, attendeeTwo.publicKey);
+    const attendeeOneBalanceBeforeCancel = await getTokenBalance(attendeeOneDepositAta);
+    const attendeeTwoBalanceBeforeCancel = await getTokenBalance(attendeeTwoDepositAta);
+    const eventVaultBalanceBeforeCancel = await getTokenBalance(fundingConfig.eventVaultAta);
 
     await cancelReservation({
       host,
@@ -618,6 +654,9 @@ describe("noflake", () => {
     const promotedReservation = await program.account.reservationAccount.fetch(
       secondReservation
     );
+    const attendeeOneBalanceAfterCancel = await getTokenBalance(attendeeOneDepositAta);
+    const attendeeTwoBalanceAfterCancel = await getTokenBalance(attendeeTwoDepositAta);
+    const eventVaultBalanceAfterCancel = await getTokenBalance(fundingConfig.eventVaultAta);
 
     expect(enumVariant(cancelledReservation.status as Record<string, unknown>)).to.equal(
       "cancelled"
@@ -626,6 +665,9 @@ describe("noflake", () => {
       "reserved"
     );
     expect(event.reservedCount).to.equal(1);
+    expect(attendeeOneBalanceAfterCancel - attendeeOneBalanceBeforeCancel).to.equal(500_000_000n);
+    expect(attendeeTwoBalanceAfterCancel).to.equal(attendeeTwoBalanceBeforeCancel);
+    expect(eventVaultBalanceBeforeCancel - eventVaultBalanceAfterCancel).to.equal(500_000_000n);
   });
 
   it("does not count cancelled reservations toward finalization readiness", async () => {
