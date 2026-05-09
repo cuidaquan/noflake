@@ -258,7 +258,7 @@ pub mod noflake {
 }
 
 #[derive(Accounts)]
-#[instruction(start_time: i64)]
+#[instruction(title: String, venue: String, start_time: i64)]
 pub struct InitializeEvent<'info> {
     #[account(mut)]
     pub host: Signer<'info>,

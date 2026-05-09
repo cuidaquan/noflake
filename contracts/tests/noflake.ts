@@ -111,23 +111,51 @@ describe("noflake", () => {
     await waitForConfirmation(signature);
   };
 
+  const waitForUnixTime = async (targetUnixTime: number) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const clock = await provider.connection.getBlockTime(
+        await provider.connection.getSlot("confirmed")
+      );
+      if (clock !== null && clock >= targetUnixTime) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    throw new Error(`timed out waiting for unix time ${targetUnixTime}`);
+  };
+
+  const getCurrentUnixTime = async () => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const clock = await provider.connection.getBlockTime(
+        await provider.connection.getSlot("confirmed")
+      );
+      if (clock !== null) {
+        return clock;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error("unable to determine current unix time");
+  };
+
   const initializeEvent = async ({
     host,
     seatCount,
     settlementMode,
     startTimeValue = 1_800_000_000,
+    cutoffTimeValue = startTimeValue - 1_000,
   }: {
     host: anchor.web3.Keypair;
     seatCount: number;
     settlementMode: typeof strictMode | typeof partyMode;
     startTimeValue?: number;
+    cutoffTimeValue?: number;
   }) => {
     await airdrop(host.publicKey);
 
     const title = "NoFlake Shanghai";
     const venue = "West Bund";
     const startTime = new anchor.BN(startTimeValue);
-    const cutoffTime = new anchor.BN(1_799_999_000);
+    const cutoffTime = new anchor.BN(cutoffTimeValue);
     const depositAmount = new anchor.BN(500_000_000);
 
     const [eventPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -213,7 +241,7 @@ describe("noflake", () => {
         host: host.publicKey,
         event: eventPda,
         reservation: reservationPda,
-        promotedReservation: promotedReservationPda,
+        promotedReservation: promotedReservationPda ?? null,
       })
       .transaction();
 
@@ -390,12 +418,14 @@ describe("noflake", () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();
     const attendeeTwo = anchor.web3.Keypair.generate();
+    const cutoffTimeValue = (await getCurrentUnixTime()) + 10;
 
     const { eventPda } = await initializeEvent({
       host,
       seatCount: 2,
       settlementMode: strictMode,
       startTimeValue: 1_700_000_000,
+      cutoffTimeValue,
     });
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
@@ -406,6 +436,8 @@ describe("noflake", () => {
       eventPda,
       reservationPda: secondReservation,
     });
+
+    await waitForUnixTime(cutoffTimeValue);
 
     const settleTransaction = await program.methods
       .settleReservation()
@@ -434,16 +466,20 @@ describe("noflake", () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();
     const attendeeTwo = anchor.web3.Keypair.generate();
+    const cutoffTimeValue = (await getCurrentUnixTime()) + 10;
 
     const { eventPda } = await initializeEvent({
       host,
       seatCount: 2,
       settlementMode: strictMode,
       startTimeValue: 1_700_000_000,
+      cutoffTimeValue,
     });
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    await waitForUnixTime(cutoffTimeValue);
 
     const settleTransaction = await program.methods
       .settleReservation()
@@ -474,6 +510,7 @@ describe("noflake", () => {
       seatCount: 1,
       settlementMode: strictMode,
       startTimeValue: 4_102_444_800,
+      cutoffTimeValue: 1_700_000_000,
     });
 
     const reservation = await reserveSeat(eventPda, attendee);
@@ -525,7 +562,7 @@ describe("noflake", () => {
     expect(enumVariant(reservationAccount.status as Record<string, unknown>)).to.equal(
       "reserved"
     );
-    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("open");
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("full");
   });
 
   it("allows a host to cancel an event before settlement and marks the event cancelled", async () => {
@@ -558,6 +595,7 @@ describe("noflake", () => {
       host,
       seatCount: 2,
       settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
     });
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
@@ -628,6 +666,7 @@ describe("noflake", () => {
       host,
       seatCount: 1,
       settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
     });
     const reservation = await reserveSeat(eventPda, attendee);
 
@@ -658,6 +697,7 @@ describe("noflake", () => {
       host,
       seatCount: 1,
       settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
     });
 
     await reserveSeat(eventPda, attendeeOne);
@@ -685,6 +725,7 @@ describe("noflake", () => {
       host,
       seatCount: 2,
       settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
     });
 
     const finalizeTransaction = await program.methods
@@ -710,6 +751,7 @@ describe("noflake", () => {
       host,
       seatCount: 2,
       settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
     });
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
@@ -808,15 +850,19 @@ describe("noflake", () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();
     const attendeeTwo = anchor.web3.Keypair.generate();
+    const cutoffTimeValue = (await getCurrentUnixTime()) + 10;
 
     const { eventPda } = await initializeEvent({
       host,
       seatCount: 2,
       settlementMode: strictMode,
+      cutoffTimeValue,
     });
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+
+    await waitForUnixTime(cutoffTimeValue);
 
     const settleFirstTransaction = await program.methods
       .settleReservation()
