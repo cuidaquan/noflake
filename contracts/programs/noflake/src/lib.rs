@@ -258,11 +258,55 @@ pub mod noflake {
             Clock::get()?.unix_timestamp >= event.cutoff_time,
             NoflakeError::EventSettlementTooEarly
         );
+        require!(
+            ctx.accounts.deposit_mint_account.key() == event.deposit_mint,
+            NoflakeError::InvalidDepositMint
+        );
+
+        let event_key = event.key();
+        let vault_bump_seed = [event.vault_authority_bump];
+        let vault_signer_seeds = &[&[
+            b"vault",
+            event_key.as_ref(),
+            &vault_bump_seed,
+        ][..]];
 
         reservation.status = match reservation.status {
-            ReservationStatus::CheckedIn => ReservationStatus::Refunded,
+            ReservationStatus::CheckedIn => {
+                transfer_checked(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(),
+                        TransferChecked {
+                            from: ctx.accounts.event_vault_token.to_account_info(),
+                            mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                            to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                            authority: ctx.accounts.vault_authority.to_account_info(),
+                        },
+                        vault_signer_seeds,
+                    ),
+                    reservation.paid_amount,
+                    ctx.accounts.deposit_mint_account.decimals,
+                )?;
+                ReservationStatus::Refunded
+            }
             ReservationStatus::Reserved => match event.settlement_mode {
-                SettlementMode::Strict => ReservationStatus::Forfeited,
+                SettlementMode::Strict => {
+                    transfer_checked(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(),
+                            TransferChecked {
+                                from: ctx.accounts.event_vault_token.to_account_info(),
+                                mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                                to: ctx.accounts.host_deposit_token.to_account_info(),
+                                authority: ctx.accounts.vault_authority.to_account_info(),
+                            },
+                            vault_signer_seeds,
+                        ),
+                        reservation.paid_amount,
+                        ctx.accounts.deposit_mint_account.decimals,
+                    )?;
+                    ReservationStatus::Forfeited
+                }
                 SettlementMode::Party | SettlementMode::Sponsor => ReservationStatus::NoShow,
             },
             ReservationStatus::Refunded
@@ -441,8 +485,41 @@ pub struct SettleReservation<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
     pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump = event.vault_authority_bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = reservation.attendee,
+        associated_token::token_program = token_program,
+    )]
+    pub attendee_deposit_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = host,
+        associated_token::token_program = token_program,
+    )]
+    pub host_deposit_token: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, has_one = event)]
     pub reservation: Account<'info, ReservationAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

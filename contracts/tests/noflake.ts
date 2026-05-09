@@ -445,6 +445,61 @@ describe("noflake", () => {
     await sendTransaction(transaction, host);
   };
 
+  const buildSettleReservationTransaction = async ({
+    host,
+    eventPda,
+    reservationPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const reservation = await program.account.reservationAccount.fetch(reservationPda);
+    const hostDepositAta = await createAta(
+      host,
+      fundingConfig.depositMint,
+      host.publicKey
+    );
+    const attendeeDepositAta = getAssociatedTokenAddressSync(
+      fundingConfig.depositMint,
+      reservation.attendee
+    );
+
+    return program.methods
+      .settleReservation()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        vaultAuthority: fundingConfig.vaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        eventVaultToken: fundingConfig.eventVaultAta,
+        attendeeDepositToken: attendeeDepositAta,
+        hostDepositToken: hostDepositAta,
+        reservation: reservationPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
+  const settleReservation = async ({
+    host,
+    eventPda,
+    reservationPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda,
+    });
+
+    await sendTransaction(transaction, host);
+  };
+
   const undoCheckIn = async ({
     host,
     eventPda,
@@ -695,14 +750,11 @@ describe("noflake", () => {
 
     await waitForUnixTime(cutoffTimeValue);
 
-    const settleTransaction = await program.methods
-      .settleReservation()
-      .accountsPartial({
-        host: host.publicKey,
-        event: eventPda,
-        reservation: firstReservation,
-      })
-      .transaction();
+    const settleTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
     await sendTransaction(settleTransaction, host);
 
     const finalizeTransaction = await program.methods
@@ -737,14 +789,11 @@ describe("noflake", () => {
 
     await waitForUnixTime(cutoffTimeValue);
 
-    const settleTransaction = await program.methods
-      .settleReservation()
-      .accountsPartial({
-        host: host.publicKey,
-        event: eventPda,
-        reservation: firstReservation,
-      })
-      .transaction();
+    const settleTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
     await sendTransaction(settleTransaction, host);
 
     await expectAnchorError(
@@ -856,6 +905,14 @@ describe("noflake", () => {
 
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     const secondReservation = await reserveSeat(eventPda, attendeeTwo);
+    const fundingConfig = getFundingConfig(eventPda);
+    const hostDepositAta = await createAta(
+      host,
+      fundingConfig.depositMint,
+      host.publicKey
+    );
+    const attendeeOneDepositAta = getAttendeeDepositAta(eventPda, attendeeOne.publicKey);
+    const attendeeTwoDepositAta = getAttendeeDepositAta(eventPda, attendeeTwo.publicKey);
 
     const checkInTransaction = await program.methods
       .checkIn()
@@ -867,25 +924,22 @@ describe("noflake", () => {
       .transaction();
     await sendTransaction(checkInTransaction, host);
 
-    const settleCheckedInTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: firstReservation,
-        })
-      .transaction();
-    await sendTransaction(settleCheckedInTransaction, host);
+    const attendeeOneBalanceBeforeSettlement = await getTokenBalance(attendeeOneDepositAta);
+    const attendeeTwoBalanceBeforeSettlement = await getTokenBalance(attendeeTwoDepositAta);
+    const hostBalanceBeforeSettlement = await getTokenBalance(hostDepositAta);
+    const vaultBalanceBeforeSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
 
-    const settleNoShowTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: secondReservation,
-        })
-      .transaction();
-    await sendTransaction(settleNoShowTransaction, host);
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
+
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: secondReservation,
+    });
 
     const finalizeTransaction = await program.methods
       .finalizeEvent()
@@ -903,6 +957,10 @@ describe("noflake", () => {
     const reservationTwo = await program.account.reservationAccount.fetch(
       secondReservation
     );
+    const attendeeOneBalanceAfterSettlement = await getTokenBalance(attendeeOneDepositAta);
+    const attendeeTwoBalanceAfterSettlement = await getTokenBalance(attendeeTwoDepositAta);
+    const hostBalanceAfterSettlement = await getTokenBalance(hostDepositAta);
+    const vaultBalanceAfterSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
 
     expect(event.checkedInCount).to.equal(1);
     expect(enumVariant(event.status as Record<string, unknown>)).to.equal("settled");
@@ -912,6 +970,12 @@ describe("noflake", () => {
     expect(enumVariant(reservationTwo.status as Record<string, unknown>)).to.equal(
       "forfeited"
     );
+    expect(attendeeOneBalanceAfterSettlement - attendeeOneBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(attendeeTwoBalanceAfterSettlement).to.equal(attendeeTwoBalanceBeforeSettlement);
+    expect(hostBalanceAfterSettlement - hostBalanceBeforeSettlement).to.equal(500_000_000n);
+    expect(vaultBalanceBeforeSettlement - vaultBalanceAfterSettlement).to.equal(1_000_000_000n);
   });
 
   it("marks no-shows without forfeiture in party mode", async () => {
@@ -926,14 +990,11 @@ describe("noflake", () => {
     });
     const reservation = await reserveSeat(eventPda, attendee);
 
-    const settleTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation,
-        })
-      .transaction();
+    const settleTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: reservation,
+    });
     await sendTransaction(settleTransaction, host);
 
     const settledReservation = await program.account.reservationAccount.fetch(
@@ -959,14 +1020,11 @@ describe("noflake", () => {
     await reserveSeat(eventPda, attendeeOne);
     const waitlistedReservation = await reserveSeat(eventPda, attendeeTwo);
 
-    const settleTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: waitlistedReservation,
-        })
-      .transaction();
+    const settleTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: waitlistedReservation,
+    });
 
     await expectAnchorError(
       sendTransaction(settleTransaction, host),
@@ -1013,14 +1071,11 @@ describe("noflake", () => {
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     await reserveSeat(eventPda, attendeeTwo);
 
-    const settleFirstTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: firstReservation,
-        })
-      .transaction();
+    const settleFirstTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
     await sendTransaction(settleFirstTransaction, host);
 
     const finalizeTransaction = await program.methods
@@ -1050,14 +1105,11 @@ describe("noflake", () => {
 
     const reservation = await reserveSeat(eventPda, attendee);
 
-    const settleTransaction = await program.methods
-      .settleReservation()
-      .accountsPartial({
-        host: host.publicKey,
-        event: eventPda,
-        reservation,
-      })
-      .transaction();
+    const settleTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: reservation,
+    });
 
     await expectAnchorError(
       sendTransaction(settleTransaction, host),
@@ -1080,14 +1132,11 @@ describe("noflake", () => {
     const firstReservation = await reserveSeat(eventPda, attendeeOne);
     const secondReservation = await reserveSeat(eventPda, attendeeTwo);
 
-    const settleFirstTransaction = await program.methods
-      .settleReservation()
-      .accountsPartial({
-        host: host.publicKey,
-        event: eventPda,
-        reservation: firstReservation,
-      })
-      .transaction();
+    const settleFirstTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
     await sendTransaction(settleFirstTransaction, host);
 
     const checkInTransaction = await program.methods
@@ -1120,24 +1169,18 @@ describe("noflake", () => {
 
     await waitForUnixTime(cutoffTimeValue);
 
-    const settleFirstTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: firstReservation,
-        })
-      .transaction();
+    const settleFirstTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: firstReservation,
+    });
     await sendTransaction(settleFirstTransaction, host);
 
-    const settleSecondTransaction = await program.methods
-      .settleReservation()
-        .accountsPartial({
-          host: host.publicKey,
-          event: eventPda,
-          reservation: secondReservation,
-        })
-      .transaction();
+    const settleSecondTransaction = await buildSettleReservationTransaction({
+      host,
+      eventPda,
+      reservationPda: secondReservation,
+    });
     await sendTransaction(settleSecondTransaction, host);
 
     const finalizeTransaction = await program.methods
