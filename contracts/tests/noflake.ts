@@ -891,6 +891,100 @@ describe("noflake", () => {
     expect(enumVariant(event.status as Record<string, unknown>)).to.equal("cancelled");
   });
 
+  it("refunds reserved, checked-in, and waitlisted reservations after event cancellation", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const checkedInAttendee = anchor.web3.Keypair.generate();
+    const reservedAttendee = anchor.web3.Keypair.generate();
+    const waitlistedAttendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, checkedInAttendee);
+    const reservedReservation = await reserveSeat(eventPda, reservedAttendee);
+    const waitlistedReservation = await reserveSeat(eventPda, waitlistedAttendee);
+    const fundingConfig = getFundingConfig(eventPda);
+    const checkedInAttendeeAta = getAttendeeDepositAta(eventPda, checkedInAttendee.publicKey);
+    const reservedAttendeeAta = getAttendeeDepositAta(eventPda, reservedAttendee.publicKey);
+    const waitlistedAttendeeAta = getAttendeeDepositAta(eventPda, waitlistedAttendee.publicKey);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await cancelEvent({
+      host,
+      eventPda,
+    });
+
+    const checkedInBalanceBeforeSettlement = await getTokenBalance(checkedInAttendeeAta);
+    const reservedBalanceBeforeSettlement = await getTokenBalance(reservedAttendeeAta);
+    const waitlistedBalanceBeforeSettlement = await getTokenBalance(waitlistedAttendeeAta);
+    const vaultBalanceBeforeSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: checkedInReservation,
+    });
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: reservedReservation,
+    });
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: waitlistedReservation,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const checkedInReservationAccount = await program.account.reservationAccount.fetch(
+      checkedInReservation
+    );
+    const reservedReservationAccount = await program.account.reservationAccount.fetch(
+      reservedReservation
+    );
+    const waitlistedReservationAccount = await program.account.reservationAccount.fetch(
+      waitlistedReservation
+    );
+    const checkedInBalanceAfterSettlement = await getTokenBalance(checkedInAttendeeAta);
+    const reservedBalanceAfterSettlement = await getTokenBalance(reservedAttendeeAta);
+    const waitlistedBalanceAfterSettlement = await getTokenBalance(waitlistedAttendeeAta);
+    const vaultBalanceAfterSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("cancelled");
+    expect(enumVariant(checkedInReservationAccount.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(enumVariant(reservedReservationAccount.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(enumVariant(waitlistedReservationAccount.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(checkedInBalanceAfterSettlement - checkedInBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(reservedBalanceAfterSettlement - reservedBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(waitlistedBalanceAfterSettlement - waitlistedBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(vaultBalanceBeforeSettlement - vaultBalanceAfterSettlement).to.equal(1_500_000_000n);
+    expect(vaultBalanceAfterSettlement).to.equal(0n);
+  });
+
   it("settles checked-in and no-show reservations in strict mode", async () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();

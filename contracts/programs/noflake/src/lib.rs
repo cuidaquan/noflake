@@ -251,12 +251,9 @@ pub mod noflake {
                     | EventStatus::Full
                     | EventStatus::InProgress
                     | EventStatus::Settling
+                    | EventStatus::Cancelled
             ),
             NoflakeError::EventSettlementClosed
-        );
-        require!(
-            Clock::get()?.unix_timestamp >= event.cutoff_time,
-            NoflakeError::EventSettlementTooEarly
         );
         require!(
             ctx.accounts.deposit_mint_account.key() == event.deposit_mint,
@@ -270,6 +267,14 @@ pub mod noflake {
             event_key.as_ref(),
             &vault_bump_seed,
         ][..]];
+        let event_cancelled = event.status == EventStatus::Cancelled;
+
+        if !event_cancelled {
+            require!(
+                Clock::get()?.unix_timestamp >= event.cutoff_time,
+                NoflakeError::EventSettlementTooEarly
+            );
+        }
 
         reservation.status = match reservation.status {
             ReservationStatus::CheckedIn => {
@@ -289,7 +294,41 @@ pub mod noflake {
                 )?;
                 ReservationStatus::Refunded
             }
+            ReservationStatus::Waitlisted if event_cancelled => {
+                transfer_checked(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(),
+                        TransferChecked {
+                            from: ctx.accounts.event_vault_token.to_account_info(),
+                            mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                            to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                            authority: ctx.accounts.vault_authority.to_account_info(),
+                        },
+                        vault_signer_seeds,
+                    ),
+                    reservation.paid_amount,
+                    ctx.accounts.deposit_mint_account.decimals,
+                )?;
+                ReservationStatus::Refunded
+            }
             ReservationStatus::Reserved => match event.settlement_mode {
+                SettlementMode::Strict if event_cancelled => {
+                    transfer_checked(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(),
+                            TransferChecked {
+                                from: ctx.accounts.event_vault_token.to_account_info(),
+                                mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                                to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                                authority: ctx.accounts.vault_authority.to_account_info(),
+                            },
+                            vault_signer_seeds,
+                        ),
+                        reservation.paid_amount,
+                        ctx.accounts.deposit_mint_account.decimals,
+                    )?;
+                    ReservationStatus::Refunded
+                }
                 SettlementMode::Strict => {
                     transfer_checked(
                         CpiContext::new_with_signer(
@@ -314,14 +353,19 @@ pub mod noflake {
             | ReservationStatus::NoShow => {
                 return err!(NoflakeError::ReservationAlreadySettled);
             }
-            ReservationStatus::Waitlisted | ReservationStatus::Cancelled => {
+            ReservationStatus::Cancelled => {
+                return err!(NoflakeError::ReservationNotSettleable);
+            }
+            ReservationStatus::Waitlisted => {
                 return err!(NoflakeError::ReservationNotSettleable);
             }
         };
 
         event.settled_count = event.settled_count.saturating_add(1);
         event.active_count = event.active_count.saturating_sub(1);
-        event.status = if event.active_count == 0 {
+        event.status = if event_cancelled {
+            EventStatus::Cancelled
+        } else if event.active_count == 0 {
             EventStatus::Settling
         } else {
             EventStatus::InProgress
