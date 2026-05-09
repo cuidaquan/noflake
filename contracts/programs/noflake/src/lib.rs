@@ -1,5 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token_interface::{
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
+};
 
 declare_id!("F5umdtne4aMhcmPpeV8G8ap1EhMe79mqUJET8EVJUmcA");
 
@@ -16,6 +20,7 @@ pub mod noflake {
         deposit_amount: u64,
         seat_count: u16,
         settlement_mode: SettlementMode,
+        deposit_mint: Pubkey,
     ) -> Result<()> {
         let event = &mut ctx.accounts.event;
         event.host = ctx.accounts.host.key();
@@ -32,7 +37,9 @@ pub mod noflake {
         event.next_waitlist_order = 1;
         event.next_waitlist_to_promote = 1;
         event.settlement_mode = settlement_mode;
+        event.deposit_mint = deposit_mint;
         event.status = EventStatus::Open;
+        event.vault_authority_bump = ctx.bumps.vault_authority;
         event.bump = ctx.bumps.event;
         Ok(())
     }
@@ -45,6 +52,24 @@ pub mod noflake {
             matches!(event.status, EventStatus::Open | EventStatus::Full),
             NoflakeError::EventNotAcceptingReservations
         );
+        require!(
+            ctx.accounts.deposit_mint_account.key() == event.deposit_mint,
+            NoflakeError::InvalidDepositMint
+        );
+
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.attendee_deposit_token.to_account_info(),
+                    mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                    to: ctx.accounts.event_vault_token.to_account_info(),
+                    authority: ctx.accounts.attendee.to_account_info(),
+                },
+            ),
+            event.deposit_amount,
+            ctx.accounts.deposit_mint_account.decimals,
+        )?;
 
         reservation.event = event.key();
         reservation.attendee = ctx.accounts.attendee.key();
@@ -270,6 +295,22 @@ pub struct InitializeEvent<'info> {
         bump
     )]
     pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        init,
+        payer = host,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
@@ -279,6 +320,31 @@ pub struct ReserveSeat<'info> {
     pub attendee: Signer<'info>,
     #[account(mut)]
     pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump = event.vault_authority_bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = attendee,
+        associated_token::token_program = token_program,
+    )]
+    pub attendee_deposit_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
     #[account(
         init,
         payer = attendee,
@@ -287,6 +353,7 @@ pub struct ReserveSeat<'info> {
         bump
     )]
     pub reservation: Account<'info, ReservationAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -353,6 +420,7 @@ pub struct EventAccount {
     pub start_time: i64,
     pub cutoff_time: i64,
     pub deposit_amount: u64,
+    pub deposit_mint: Pubkey,
     pub seat_count: u16,
     pub settlement_mode: SettlementMode,
     pub reserved_count: u16,
@@ -362,6 +430,7 @@ pub struct EventAccount {
     pub next_waitlist_order: u64,
     pub next_waitlist_to_promote: u64,
     pub status: EventStatus,
+    pub vault_authority_bump: u8,
     pub bump: u8,
 }
 
@@ -435,4 +504,6 @@ pub enum NoflakeError {
     EventCancellationClosed,
     #[msg("Event is not ready to finalize.")]
     EventNotReadyToFinalize,
+    #[msg("Provided deposit mint does not match the event configuration.")]
+    InvalidDepositMint,
 }

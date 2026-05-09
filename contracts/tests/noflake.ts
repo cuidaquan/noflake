@@ -1,5 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
+import {
+  createAssociatedTokenAccountInstruction,
+  createInitializeMint2Instruction,
+  createMintToInstruction,
+  getAccount,
+  getAssociatedTokenAddressSync,
+  MINT_SIZE,
+  TOKEN_PROGRAM_ID
+} from "@solana/spl-token";
 import { expect } from "chai";
 import { Noflake } from "../target/types/noflake";
 
@@ -10,6 +19,15 @@ describe("noflake", () => {
   const program = anchor.workspace.noflake as Program<Noflake>;
   const strictMode = { strict: {} };
   const partyMode = { party: {} };
+  const eventFundingConfig = new Map<
+    string,
+    {
+      depositMint: anchor.web3.PublicKey;
+      mintAuthority: anchor.web3.Keypair;
+      eventVaultAta: anchor.web3.PublicKey;
+      vaultAuthorityPda: anchor.web3.PublicKey;
+    }
+  >();
 
   const waitForConfirmation = async (signature: string) => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -111,6 +129,92 @@ describe("noflake", () => {
     await waitForConfirmation(signature);
   };
 
+  const createMint = async (authority: anchor.web3.Keypair, decimals = 6) => {
+    const mint = anchor.web3.Keypair.generate();
+    const lamports = await provider.connection.getMinimumBalanceForRentExemption(
+      MINT_SIZE
+    );
+    const transaction = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.createAccount({
+        fromPubkey: authority.publicKey,
+        newAccountPubkey: mint.publicKey,
+        space: MINT_SIZE,
+        lamports,
+        programId: TOKEN_PROGRAM_ID
+      }),
+      createInitializeMint2Instruction(
+        mint.publicKey,
+        decimals,
+        authority.publicKey,
+        null
+      )
+    );
+
+    transaction.feePayer = authority.publicKey;
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+    transaction.partialSign(authority, mint);
+
+    const signature = await provider.connection.sendRawTransaction(
+      transaction.serialize()
+    );
+    await waitForConfirmation(signature);
+    return mint.publicKey;
+  };
+
+  const createAta = async (
+    payer: anchor.web3.Keypair,
+    mint: anchor.web3.PublicKey,
+    owner: anchor.web3.PublicKey
+  ) => {
+    const ata = getAssociatedTokenAddressSync(mint, owner);
+    const accountInfo = await provider.connection.getAccountInfo(ata);
+
+    if (accountInfo) {
+      return ata;
+    }
+
+    const transaction = new anchor.web3.Transaction().add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        ata,
+        owner,
+        mint
+      )
+    );
+
+    await sendTransaction(transaction, payer);
+    return ata;
+  };
+
+  const mintToAta = async ({
+    authority,
+    mint,
+    destination,
+    amount,
+  }: {
+    authority: anchor.web3.Keypair;
+    mint: anchor.web3.PublicKey;
+    destination: anchor.web3.PublicKey;
+    amount: bigint;
+  }) => {
+    const transaction = new anchor.web3.Transaction().add(
+      createMintToInstruction(
+        mint,
+        destination,
+        authority.publicKey,
+        amount
+      )
+    );
+
+    await sendTransaction(transaction, authority);
+  };
+
+  const getTokenBalance = async (account: anchor.web3.PublicKey) => {
+    const tokenAccount = await getAccount(provider.connection, account);
+    return tokenAccount.amount;
+  };
+
   const waitForUnixTime = async (targetUnixTime: number) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const clock = await provider.connection.getBlockTime(
@@ -141,16 +245,19 @@ describe("noflake", () => {
     host,
     seatCount,
     settlementMode,
+    depositMint,
     startTimeValue = 1_800_000_000,
     cutoffTimeValue = startTimeValue - 1_000,
   }: {
     host: anchor.web3.Keypair;
     seatCount: number;
     settlementMode: typeof strictMode | typeof partyMode;
+    depositMint?: anchor.web3.PublicKey;
     startTimeValue?: number;
     cutoffTimeValue?: number;
   }) => {
     await airdrop(host.publicKey);
+    const resolvedDepositMint = depositMint ?? (await createMint(host));
 
     const title = "NoFlake Shanghai";
     const venue = "West Bund";
@@ -167,6 +274,12 @@ describe("noflake", () => {
       program.programId
     );
 
+    const [vaultAuthorityPda, vaultAuthorityBump] =
+      anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), eventPda.toBuffer()],
+        program.programId
+      );
+
     const transaction = await program.methods
       .initializeEvent(
         title,
@@ -175,32 +288,66 @@ describe("noflake", () => {
         cutoffTime,
         depositAmount,
         seatCount,
-        settlementMode
+        settlementMode,
+        resolvedDepositMint
       )
       .accountsPartial({
         host: host.publicKey,
         event: eventPda,
+        vaultAuthority: vaultAuthorityPda,
+        depositMintAccount: resolvedDepositMint,
+        eventVaultToken: getAssociatedTokenAddressSync(
+          resolvedDepositMint,
+          vaultAuthorityPda,
+          true
+        ),
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .transaction();
 
     await sendTransaction(transaction, host);
 
+    const eventVaultAta = getAssociatedTokenAddressSync(
+      resolvedDepositMint,
+      vaultAuthorityPda,
+      true
+    );
+    eventFundingConfig.set(eventPda.toBase58(), {
+      depositMint: resolvedDepositMint,
+      mintAuthority: host,
+      eventVaultAta,
+      vaultAuthorityPda
+    });
+
     return {
       cutoffTime,
       depositAmount,
+      depositMint: resolvedDepositMint,
       eventPda,
+      eventVaultAta,
       seatCount,
       startTime,
       title,
+      vaultAuthorityBump,
+      vaultAuthorityPda,
       venue,
     };
   };
 
   const reserveSeat = async (
     eventPda: anchor.web3.PublicKey,
-    attendee: anchor.web3.Keypair
+    attendee: anchor.web3.Keypair,
+    depositMint?: anchor.web3.PublicKey
   ) => {
     await airdrop(attendee.publicKey);
+    const fundingConfig = eventFundingConfig.get(eventPda.toBase58());
+    const resolvedDepositMint = depositMint ?? fundingConfig?.depositMint;
+
+    if (!resolvedDepositMint || !fundingConfig) {
+      throw new Error(`missing funding config for event ${eventPda.toBase58()}`);
+    }
+
     const [reservationPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("reservation"),
@@ -210,12 +357,32 @@ describe("noflake", () => {
       program.programId
     );
 
+    const attendeeDepositAta = await createAta(
+      attendee,
+      resolvedDepositMint,
+      attendee.publicKey
+    );
+    const attendeeBalanceBeforeReserve = await getTokenBalance(attendeeDepositAta);
+    if (attendeeBalanceBeforeReserve < 1_000_000_000n) {
+      await mintToAta({
+        authority: fundingConfig.mintAuthority,
+        mint: resolvedDepositMint,
+        destination: attendeeDepositAta,
+        amount: 1_000_000_000n - attendeeBalanceBeforeReserve
+      });
+    }
+
     const transaction = await program.methods
       .reserveSeat()
       .accountsPartial({
         attendee: attendee.publicKey,
         event: eventPda,
         reservation: reservationPda,
+        attendeeDepositToken: attendeeDepositAta,
+        eventVaultToken: fundingConfig.eventVaultAta,
+        vaultAuthority: fundingConfig.vaultAuthorityPda,
+        depositMintAccount: resolvedDepositMint,
+        tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
 
@@ -292,10 +459,12 @@ describe("noflake", () => {
     const {
       cutoffTime,
       depositAmount,
+      depositMint,
       eventPda,
       seatCount,
       startTime,
       title,
+      vaultAuthorityBump,
       venue,
     } = await initializeEvent({
       host,
@@ -310,14 +479,59 @@ describe("noflake", () => {
     expect(event.startTime.toNumber()).to.equal(startTime.toNumber());
     expect(event.cutoffTime.toNumber()).to.equal(cutoffTime.toNumber());
     expect(event.depositAmount.toString()).to.equal(depositAmount.toString());
+    expect(event.depositMint.toBase58()).to.equal(depositMint.toBase58());
     expect(event.seatCount).to.equal(seatCount);
     expect(event.reservedCount).to.equal(0);
     expect(event.checkedInCount).to.equal(0);
     expect(event.settledCount).to.equal(0);
+    expect(event.vaultAuthorityBump).to.equal(vaultAuthorityBump);
     expect(enumVariant(event.settlementMode as Record<string, unknown>)).to.equal(
       "strict"
     );
     expect(enumVariant(event.status as Record<string, unknown>)).to.equal("open");
+  });
+
+  it("locks the attendee deposit in the event vault when reserving a seat", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+    await airdrop(host.publicKey);
+    await airdrop(attendee.publicKey);
+
+    const depositMint = await createMint(host);
+    const attendeeDepositAta = await createAta(attendee, depositMint, attendee.publicKey);
+    await mintToAta({
+      authority: host,
+      mint: depositMint,
+      destination: attendeeDepositAta,
+      amount: 1_000_000_000n
+    });
+
+    const { depositAmount, eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+      depositMint
+    });
+
+    const [vaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), eventPda.toBuffer()],
+      program.programId
+    );
+    const eventVaultAta = getAssociatedTokenAddressSync(
+      depositMint,
+      vaultAuthorityPda,
+      true
+    );
+
+    const attendeeBalanceBefore = await getTokenBalance(attendeeDepositAta);
+
+    await reserveSeat(eventPda, attendee, depositMint);
+
+    const attendeeBalanceAfter = await getTokenBalance(attendeeDepositAta);
+    const eventVaultBalance = await getTokenBalance(eventVaultAta);
+
+    expect(attendeeBalanceBefore - attendeeBalanceAfter).to.equal(BigInt(depositAmount.toString()));
+    expect(eventVaultBalance).to.equal(BigInt(depositAmount.toString()));
   });
 
   it("allows the same host to create multiple events", async () => {
