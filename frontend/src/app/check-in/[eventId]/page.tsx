@@ -225,6 +225,15 @@ export default function CheckInPage({ params }: CheckInPageProps) {
               <div>
                 <strong>{reservation.attendeeWallet}</strong>
                 <p className="inline-meta">Status: {reservation.status}</p>
+                <p className="inline-meta">
+                  Payment path:{" "}
+                  {reservation.paymentPath === "BROWSER_WALLET"
+                    ? "Browser wallet"
+                    : "Demo backend reservation"}
+                </p>
+                {reservation.walletAuthorization ? (
+                  <p className="inline-meta">Wallet authorization: Present</p>
+                ) : null}
               </div>
               <button
                 className="secondary-action"

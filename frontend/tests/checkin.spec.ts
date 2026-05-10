@@ -27,6 +27,39 @@ test("organizer can apply a scanned check-in payload and check in the matching a
   await expect(page.getByText("Status: CHECKED_IN")).toBeVisible();
 });
 
+test("check-in console shows wallet provenance for browser-wallet reservations", async ({
+  page,
+  request
+}) => {
+  const createResponse = await request.post("http://127.0.0.1:4101/events", {
+    data: {
+      title: "Wallet Provenance Dinner",
+      hostWallet: "host-browser-1",
+      creationPath: "BROWSER_WALLET",
+      hostWalletAuthorization: "signed-host-proof",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    }
+  });
+  const event = await createResponse.json();
+
+  await request.post(`http://127.0.0.1:4101/events/${event.id}/reservations`, {
+    data: {
+      attendeeWallet: "wallet-browser-1",
+      paymentPath: "BROWSER_WALLET",
+      walletAuthorization: "signed-intent-proof"
+    }
+  });
+
+  await page.goto(`/check-in/${event.id}`);
+  await expect(page.getByText("Payment path: Browser wallet")).toBeVisible();
+  await expect(page.getByText("Wallet authorization: Present")).toBeVisible();
+});
+
 test("settlement page shows party bonus when the event is in party mode", async ({ page }) => {
   await page.goto("/check-in/evt_party");
   await page.getByRole("button", { name: "Settle Event" }).click();
