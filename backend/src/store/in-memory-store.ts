@@ -12,6 +12,7 @@ export type EventRecord = {
   title: string;
   hostWallet: string;
   creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostAuthorizationMessage?: string;
   hostWalletAuthorization?: string;
   venue: string;
   startTime: string;
@@ -32,6 +33,7 @@ export type ReservationRecord = {
   eventId: string;
   attendeeWallet: string;
   paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  walletAuthorizationMessage?: string;
   walletAuthorization?: string;
   status: ReservationStatus;
   paidAmount: number;

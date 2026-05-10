@@ -59,6 +59,10 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events", (req, res) => {
     const creationPath =
       req.body.creationPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const hostAuthorizationMessage =
+      typeof req.body.hostAuthorizationMessage === "string"
+        ? req.body.hostAuthorizationMessage
+        : undefined;
     const hostWalletAuthorization =
       typeof req.body.hostWalletAuthorization === "string"
         ? req.body.hostWalletAuthorization
@@ -69,7 +73,12 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
-    const event = eventService.createEvent(req.body);
+    const event = eventService.createEvent({
+      ...req.body,
+      creationPath,
+      hostAuthorizationMessage,
+      hostWalletAuthorization
+    });
     persistStore();
     res.status(201).json(event);
   });
@@ -101,6 +110,10 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events/:eventId/reservations", (req, res) => {
     const paymentPath =
       req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const walletAuthorizationMessage =
+      typeof req.body.walletAuthorizationMessage === "string"
+        ? req.body.walletAuthorizationMessage
+        : undefined;
     const walletAuthorization =
       typeof req.body.walletAuthorization === "string" ? req.body.walletAuthorization : undefined;
 
@@ -113,6 +126,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet",
       paymentPath,
+      walletAuthorizationMessage,
       walletAuthorization
     );
     persistStore();

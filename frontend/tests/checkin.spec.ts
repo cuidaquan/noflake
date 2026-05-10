@@ -39,6 +39,7 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
       title: "Wallet Provenance Dinner",
       hostWallet: "host-browser-1",
       creationPath: "BROWSER_WALLET",
+      hostAuthorizationMessage: "create-event:host-browser-1:Wallet Provenance Dinner",
       hostWalletAuthorization: "signed-host-proof",
       venue: "Shanghai",
       startTime: "2026-05-20T19:00:00.000Z",
@@ -54,6 +55,7 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
     data: {
       attendeeWallet: "wallet-browser-1",
       paymentPath: "BROWSER_WALLET",
+      walletAuthorizationMessage: `reserve:${event.id}:wallet-browser-1`,
       walletAuthorization: "signed-intent-proof"
     }
   });
@@ -61,6 +63,9 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
   await page.goto(`/check-in/${event.id}`);
   await expect(page.getByText("Payment path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Wallet authorization: Present")).toBeVisible();
+  await expect(
+    page.getByText(`Authorization payload: reserve:${event.id}:wallet-browser-1`)
+  ).toBeVisible();
 });
 
 test("settlement page shows party bonus when the event is in party mode", async ({ page }) => {

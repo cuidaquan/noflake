@@ -214,6 +214,7 @@ test("event detail page shows browser-wallet host provenance when the organizer 
       title: "Signed Host Details Dinner",
       hostWallet: "host-browser-1",
       creationPath: "BROWSER_WALLET",
+      hostAuthorizationMessage: "create-event:host-browser-1:Signed Host Details Dinner",
       hostWalletAuthorization: "signed-host-proof",
       venue: "Shanghai",
       startTime: "2026-05-20T19:00:00.000Z",
@@ -228,6 +229,9 @@ test("event detail page shows browser-wallet host provenance when the organizer 
   await page.goto(`/events/${event.id}`);
   await expect(page.getByText("Host wallet path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+  await expect(
+    page.getByText("Host authorization payload: create-event:host-browser-1:Signed Host Details Dinner")
+  ).toBeVisible();
 });
 
 test("event detail page shows full capacity and active waitlist pressure", async ({

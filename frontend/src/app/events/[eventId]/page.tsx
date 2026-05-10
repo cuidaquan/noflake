@@ -55,6 +55,9 @@ export default async function EventPage({ params }: EventPageProps) {
         {event.hostWalletAuthorization ? (
           <p>Host authorization: Signed in browser wallet</p>
         ) : null}
+        {event.hostAuthorizationMessage ? (
+          <p>Host authorization payload: {event.hostAuthorizationMessage}</p>
+        ) : null}
         <p>Settlement mode: {event.settlementMode}</p>
         <p>Cutoff time: {event.cutoffTime}</p>
         <p>Seat capacity: {event.seatCount}</p>

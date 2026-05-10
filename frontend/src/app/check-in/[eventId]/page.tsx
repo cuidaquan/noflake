@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { formatPaymentPathLabel } from "../../../../../shared/src/constants";
 import {
   cancelEvent,
@@ -36,6 +36,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [scanPayload, setScanPayload] = useState("");
   const [scannedAttendeeWallet, setScannedAttendeeWallet] = useState<string | null>(null);
+  const scanPayloadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     async function loadPage() {
@@ -137,11 +138,16 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     setActionError(null);
 
     try {
-      if (!scanPayload.trim()) {
+      const rawScanPayload = scanPayloadInputRef.current?.value ?? scanPayload;
+      const normalizedScanPayload = rawScanPayload.trim();
+
+      if (!normalizedScanPayload) {
         throw new Error("Scanned payload is empty");
       }
 
-      const parsed = new URL(scanPayload, window.location.origin);
+      setScanPayload(rawScanPayload);
+
+      const parsed = new URL(normalizedScanPayload, window.location.origin);
       const match = parsed.pathname.match(/^\/check-in\/([^/]+)$/);
       const payloadEventId = match?.[1];
       const attendeeWallet = parsed.searchParams.get("attendeeWallet");
@@ -210,7 +216,11 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           <p className="eyebrow">SCAN CHECK-IN PASS</p>
           <label className="field">
             <span>Scan payload</span>
-            <input value={scanPayload} onChange={(event) => setScanPayload(event.target.value)} />
+            <input
+              ref={scanPayloadInputRef}
+              value={scanPayload}
+              onChange={(event) => setScanPayload(event.target.value)}
+            />
           </label>
           <button className="secondary-action" onClick={handleApplyScanPayload}>
             Apply Scan Payload
@@ -231,6 +241,11 @@ export default function CheckInPage({ params }: CheckInPageProps) {
                 </p>
                 {reservation.walletAuthorization ? (
                   <p className="inline-meta">Wallet authorization: Present</p>
+                ) : null}
+                {reservation.walletAuthorizationMessage ? (
+                  <p className="inline-meta">
+                    Authorization payload: {reservation.walletAuthorizationMessage}
+                  </p>
                 ) : null}
               </div>
               <button

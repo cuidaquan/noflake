@@ -128,6 +128,7 @@ describe("backend api", () => {
     const response = await request(app).post("/events").send({
       title: "Signed Host Dinner",
       hostWallet: "host-browser-1",
+      hostAuthorizationMessage: "create-event:host-browser-1:Signed Host Dinner",
       hostWalletAuthorization: "signed-host-proof",
       creationPath: "BROWSER_WALLET",
       venue: "Shanghai",
@@ -140,7 +141,16 @@ describe("backend api", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.creationPath).toBe("BROWSER_WALLET");
+    expect(response.body.hostAuthorizationMessage).toBe(
+      "create-event:host-browser-1:Signed Host Dinner"
+    );
     expect(response.body.hostWalletAuthorization).toBe("signed-host-proof");
+
+    const fetchResponse = await request(app).get(`/events/${response.body.id}`);
+    expect(fetchResponse.status).toBe(200);
+    expect(fetchResponse.body.hostAuthorizationMessage).toBe(
+      "create-event:host-browser-1:Signed Host Dinner"
+    );
   });
 
   it("rejects browser-wallet event creation without wallet authorization", async () => {
@@ -266,14 +276,21 @@ describe("backend api", () => {
       .send({
         attendeeWallet: "wallet-browser-2",
         paymentPath: "BROWSER_WALLET",
+        walletAuthorizationMessage: `reserve:${createResponse.body.id}:wallet-browser-2`,
         walletAuthorization: "signed-intent-proof"
       });
 
     expect(reserveResponse.status).toBe(201);
+    expect(reserveResponse.body.walletAuthorizationMessage).toBe(
+      `reserve:${createResponse.body.id}:wallet-browser-2`
+    );
     expect(reserveResponse.body.walletAuthorization).toBe("signed-intent-proof");
 
     const reservationsResponse = await request(app).get(
       `/events/${createResponse.body.id}/reservations`
+    );
+    expect(reservationsResponse.body[0].walletAuthorizationMessage).toBe(
+      `reserve:${createResponse.body.id}:wallet-browser-2`
     );
     expect(reservationsResponse.body[0].walletAuthorization).toBe("signed-intent-proof");
   });

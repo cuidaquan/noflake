@@ -6,6 +6,7 @@ export type CreateEventInput = {
   title: string;
   hostWallet: string;
   creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostAuthorizationMessage?: string;
   hostWalletAuthorization?: string;
   venue: string;
   startTime: string;
@@ -47,6 +48,7 @@ export type ReservationDetails = {
   eventId: string;
   attendeeWallet: string;
   paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  walletAuthorizationMessage?: string;
   walletAuthorization?: string;
   status: string;
   paidAmount: number;
@@ -168,6 +170,7 @@ export async function reserveSeat(
   eventId: string,
   attendeeWallet: string,
   paymentPath: "DEMO_BACKEND" | "BROWSER_WALLET" = "DEMO_BACKEND",
+  walletAuthorizationMessage?: string,
   walletAuthorization?: string
 ): Promise<ReservationDetails> {
   const response = await fetch(`${API_BASE_URL}/events/${eventId}/reservations`, {
@@ -175,7 +178,12 @@ export async function reserveSeat(
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ attendeeWallet, paymentPath, walletAuthorization })
+    body: JSON.stringify({
+      attendeeWallet,
+      paymentPath,
+      walletAuthorizationMessage,
+      walletAuthorization
+    })
   });
 
   if (!response.ok) {

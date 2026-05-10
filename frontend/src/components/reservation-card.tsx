@@ -121,6 +121,7 @@ export function ReservationCard({
         eventId,
         walletAddress,
         isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
+        walletAuthorization ? activeWalletIntent?.authorizationMessage : undefined,
         walletAuthorization ?? undefined
       );
       setReservation(payload);
