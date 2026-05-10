@@ -151,7 +151,7 @@ test("organizer sees browser-wallet signing progress before event creation compl
   await expect(page.getByText(/^Host wallet: host-browser-delayed$/)).toBeVisible();
 });
 
-test("organizer sees an authorization error when the browser wallet cannot sign event creation", async ({
+test("organizer sees event creation disabled when the browser wallet cannot sign", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -177,10 +177,10 @@ test("organizer sees an authorization error when the browser wallet cannot sign 
   await page.getByLabel("Title").fill("Unsigned Host Dinner");
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");
-  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page.getByRole("button", { name: "Create Event" })).toBeDisabled();
   await expect(
     page.getByText("Browser host wallet authorization is required before creating an event.")
-  ).toBeVisible();
+  ).toHaveCount(0);
 });
 
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({

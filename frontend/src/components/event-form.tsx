@@ -48,6 +48,7 @@ export function EventForm() {
         createAuthorization: createWalletAuthorization
       })
     : null;
+  const browserWalletBlocked = browserWalletAvailable && !browserWalletCanSign && !isDemoWallet;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -203,7 +204,11 @@ export function EventForm() {
           </p>
         ) : null}
 
-        <button className="primary-action" type="submit" disabled={isSubmitting}>
+        <button
+          className="primary-action"
+          type="submit"
+          disabled={isSubmitting || browserWalletBlocked}
+        >
           {isSubmitting ? "Creating..." : "Create Event"}
         </button>
 

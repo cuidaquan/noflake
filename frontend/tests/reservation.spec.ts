@@ -146,7 +146,7 @@ test("attendee sees browser-wallet signing progress before reservation submissio
   await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();
 });
 
-test("attendee sees an authorization error when the browser wallet cannot sign", async ({
+test("attendee sees reservation disabled when the browser wallet cannot sign", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -169,10 +169,40 @@ test("attendee sees an authorization error when the browser wallet cannot sign",
   ).toBeVisible();
   await page.getByRole("button", { name: "Connect wallet" }).click();
   await expect(page.getByText("Connected: wallet-browser-nosign")).toBeVisible();
-  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(page.getByRole("button", { name: "Reserve with USDC" })).toBeDisabled();
   await expect(
     page.getByText("Browser wallet authorization is required before reserving.")
+  ).toHaveCount(0);
+});
+
+test("attendee can switch to demo fallback when the browser wallet cannot sign", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "wallet-browser-nosign"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-nosign" } })
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/events/evt_1");
+  await expect(
+    page.getByText("Connected browser wallet does not support message signing. Use demo flow or a compatible wallet.")
   ).toBeVisible();
+  await expect(page.getByLabel("Demo wallet")).toBeVisible();
+  await page.getByLabel("Demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
+  await expect(page.getByText("Payment path: Demo backend reservation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reserve with USDC" })).toBeEnabled();
+  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(page.getByText("Reservation path: Demo backend reservation")).toBeVisible();
 });
 
 test("attendee can inspect event details before reserving", async ({ page, request }) => {

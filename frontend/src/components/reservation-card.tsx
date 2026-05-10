@@ -63,6 +63,7 @@ export function ReservationCard({
             createAuthorization: createWalletAuthorization
           })
         : null;
+  const browserWalletBlocked = browserWalletAvailable && !browserWalletCanSign && !isDemoWallet;
   const checkInPass =
     reservation && walletAddress
       ? `/check-in/${eventId}?attendeeWallet=${encodeURIComponent(walletAddress)}`
@@ -260,7 +261,7 @@ export function ReservationCard({
       <button
         className="primary-action"
         onClick={handleReserveSeat}
-        disabled={isSubmitting || !walletAddress}
+        disabled={isSubmitting || !walletAddress || browserWalletBlocked}
       >
         {isSubmitting ? "Reserving..." : "Reserve with USDC"}
       </button>
