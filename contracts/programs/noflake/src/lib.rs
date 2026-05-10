@@ -77,6 +77,7 @@ pub mod noflake {
         reservation.event = event.key();
         reservation.attendee = ctx.accounts.attendee.key();
         reservation.paid_amount = event.deposit_amount;
+        reservation.party_bonus_claimed = false;
         reservation.bump = ctx.bumps.reservation;
 
         if event.reserved_count < event.seat_count {
@@ -461,6 +462,57 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn claim_party_bonus(ctx: Context<ClaimPartyBonus>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+        let reservation = &mut ctx.accounts.reservation;
+
+        require!(
+            event.settlement_mode == SettlementMode::Party,
+            NoflakeError::PartyDistributionUnavailable
+        );
+        require!(
+            event.party_bonus_prepared,
+            NoflakeError::PartyDistributionNotPrepared
+        );
+        require!(
+            reservation.status == ReservationStatus::Refunded,
+            NoflakeError::PartyBonusIneligible
+        );
+        require!(
+            !reservation.party_bonus_claimed,
+            NoflakeError::PartyBonusAlreadyClaimed
+        );
+
+        let event_key = event.key();
+        let vault_bump_seed = [event.vault_authority_bump];
+        let vault_signer_seeds = &[&[
+            b"vault",
+            event_key.as_ref(),
+            &vault_bump_seed,
+        ][..]];
+
+        if event.party_bonus_per_attendee > 0 {
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.event_vault_token.to_account_info(),
+                        mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                        to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                        authority: ctx.accounts.vault_authority.to_account_info(),
+                    },
+                    vault_signer_seeds,
+                ),
+                event.party_bonus_per_attendee,
+                ctx.accounts.deposit_mint_account.decimals,
+            )?;
+        }
+
+        reservation.party_bonus_claimed = true;
+        event.party_bonus_claimed_count = event.party_bonus_claimed_count.saturating_add(1);
+        Ok(())
+    }
+
     pub fn finalize_event(ctx: Context<FinalizeEvent>) -> Result<()> {
         let event = &mut ctx.accounts.event;
 
@@ -695,6 +747,41 @@ pub struct PreparePartyDistribution<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ClaimPartyBonus<'info> {
+    pub attendee: Signer<'info>,
+    #[account(mut)]
+    pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump = event.vault_authority_bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = attendee,
+        associated_token::token_program = token_program,
+    )]
+    pub attendee_deposit_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut, has_one = event, has_one = attendee)]
+    pub reservation: Account<'info, ReservationAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 pub struct FinalizeEvent<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
@@ -737,6 +824,7 @@ pub struct ReservationAccount {
     pub status: ReservationStatus,
     pub paid_amount: u64,
     pub waitlist_order: u64,
+    pub party_bonus_claimed: bool,
     pub bump: u8,
 }
 
@@ -805,4 +893,10 @@ pub enum NoflakeError {
     PartyDistributionUnavailable,
     #[msg("Party distribution has already been prepared.")]
     PartyDistributionAlreadyPrepared,
+    #[msg("Party distribution has not been prepared yet.")]
+    PartyDistributionNotPrepared,
+    #[msg("Reservation is not eligible for a party bonus.")]
+    PartyBonusIneligible,
+    #[msg("Party bonus has already been claimed.")]
+    PartyBonusAlreadyClaimed,
 }

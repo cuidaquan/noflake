@@ -528,6 +528,55 @@ describe("noflake", () => {
       .transaction();
   };
 
+  const buildClaimPartyBonusTransaction = async ({
+    attendee,
+    eventPda,
+    reservationPda,
+  }: {
+    attendee: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const attendeeDepositAta = await createAta(
+      attendee,
+      fundingConfig.depositMint,
+      attendee.publicKey
+    );
+
+    return program.methods
+      .claimPartyBonus()
+      .accountsPartial({
+        attendee: attendee.publicKey,
+        event: eventPda,
+        reservation: reservationPda,
+        vaultAuthority: fundingConfig.vaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        eventVaultToken: fundingConfig.eventVaultAta,
+        attendeeDepositToken: attendeeDepositAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
+  const claimPartyBonus = async ({
+    attendee,
+    eventPda,
+    reservationPda,
+  }: {
+    attendee: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    reservationPda: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await buildClaimPartyBonusTransaction({
+      attendee,
+      eventPda,
+      reservationPda,
+    });
+
+    await sendTransaction(transaction, attendee);
+  };
+
   const undoCheckIn = async ({
     host,
     eventPda,
@@ -1302,6 +1351,163 @@ describe("noflake", () => {
     expect(event.partyBonusPerAttendee.toString()).to.equal("0");
     expect(hostBalanceAfterPrepare - hostBalanceBeforePrepare).to.equal(500_000_000n);
     expect(vaultBalanceAfterPrepare).to.equal(0n);
+  });
+
+  it("allows checked-in attendees to claim an equal party bonus", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+    const attendeeThree = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, attendeeOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, attendeeTwo);
+    const noShowReservation = await reserveSeat(eventPda, attendeeThree);
+    const fundingConfig = getFundingConfig(eventPda);
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const attendeeOneAta = getAttendeeDepositAta(eventPda, attendeeOne.publicKey);
+    const attendeeTwoAta = getAttendeeDepositAta(eventPda, attendeeTwo.publicKey);
+    const attendeeOneBalanceBeforeClaim = await getTokenBalance(attendeeOneAta);
+    const attendeeTwoBalanceBeforeClaim = await getTokenBalance(attendeeTwoAta);
+
+    await claimPartyBonus({ attendee: attendeeOne, eventPda, reservationPda: checkedInOneReservation });
+    await claimPartyBonus({ attendee: attendeeTwo, eventPda, reservationPda: checkedInTwoReservation });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const attendeeOneReservation = await program.account.reservationAccount.fetch(checkedInOneReservation);
+    const attendeeTwoReservation = await program.account.reservationAccount.fetch(checkedInTwoReservation);
+    const attendeeOneBalanceAfterClaim = await getTokenBalance(attendeeOneAta);
+    const attendeeTwoBalanceAfterClaim = await getTokenBalance(attendeeTwoAta);
+    const vaultBalanceAfterClaim = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(event.partyBonusClaimedCount).to.equal(2);
+    expect(attendeeOneReservation.partyBonusClaimed).to.equal(true);
+    expect(attendeeTwoReservation.partyBonusClaimed).to.equal(true);
+    expect(attendeeOneBalanceAfterClaim - attendeeOneBalanceBeforeClaim).to.equal(250_000_000n);
+    expect(attendeeTwoBalanceAfterClaim - attendeeTwoBalanceBeforeClaim).to.equal(250_000_000n);
+    expect(vaultBalanceAfterClaim).to.equal(0n);
+  });
+
+  it("does not allow claiming a party bonus twice", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, attendee);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    await claimPartyBonus({ attendee, eventPda, reservationPda: checkedInReservation });
+
+    const secondClaimTransaction = await buildClaimPartyBonusTransaction({
+      attendee,
+      eventPda,
+      reservationPda: checkedInReservation,
+    });
+
+    await expectAnchorError(
+      sendTransaction(secondClaimTransaction, attendee),
+      "PartyBonusAlreadyClaimed"
+    );
+  });
+
+  it("does not allow no-shows to claim a party bonus", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const checkedIn = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, checkedIn);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const claimTransaction = await buildClaimPartyBonusTransaction({
+      attendee: noShow,
+      eventPda,
+      reservationPda: noShowReservation,
+    });
+
+    await expectAnchorError(
+      sendTransaction(claimTransaction, noShow),
+      "PartyBonusIneligible"
+    );
   });
 
   it("rejects settling a waitlisted reservation", async () => {
