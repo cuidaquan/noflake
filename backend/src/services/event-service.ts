@@ -32,6 +32,25 @@ export function createEventService(store: InMemoryStore) {
       return event;
     },
 
+    advanceEventStatuses(nowMs: number = Date.now()): string[] {
+      const updatedEvents: string[] = [];
+
+      for (const event of store.events) {
+        if (event.status !== "OPEN" && event.status !== "FULL") {
+          continue;
+        }
+
+        if (nowMs < new Date(event.startTime).getTime()) {
+          continue;
+        }
+
+        event.status = "IN_PROGRESS";
+        updatedEvents.push(event.id);
+      }
+
+      return updatedEvents;
+    },
+
     getDashboard(eventId: string) {
       const event = store.events.find((candidate) => candidate.id === eventId);
 

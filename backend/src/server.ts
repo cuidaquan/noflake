@@ -3,14 +3,26 @@ import express from "express";
 import { createEventService } from "./services/event-service";
 import { createReservationService } from "./services/reservation-service";
 import { createSettlementService } from "./services/settlement-service";
+import { createSystemTicker } from "./system-tick";
+import type { InMemoryStore } from "./store/in-memory-store";
 import { createInMemoryStore } from "./store/in-memory-store";
 
-export function buildServer() {
+type BuildServerOptions = {
+  store?: InMemoryStore;
+  onStoreChange?: (store: InMemoryStore) => void;
+};
+
+export function buildServer(options: BuildServerOptions = {}) {
   const app = express();
-  const store = createInMemoryStore();
+  const store = options.store ?? createInMemoryStore();
   const eventService = createEventService(store);
   const reservationService = createReservationService(store);
   const settlementService = createSettlementService();
+  const persistStore = () => options.onStoreChange?.(store);
+  const ticker = createSystemTicker({
+    store,
+    onStoreChange: options.onStoreChange
+  });
 
   app.use(
     cors({
@@ -19,8 +31,14 @@ export function buildServer() {
   );
   app.use(express.json());
 
+  app.post("/system/tick", (_req, res) => {
+    const updatedEvents = ticker.tick();
+    res.status(200).json({ updatedEvents });
+  });
+
   app.post("/events", (req, res) => {
     const event = eventService.createEvent(req.body);
+    persistStore();
     res.status(201).json(event);
   });
 
@@ -53,6 +71,7 @@ export function buildServer() {
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet"
     );
+    persistStore();
 
     res.status(201).json(reservation);
   });
@@ -67,6 +86,7 @@ export function buildServer() {
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet"
     );
+    persistStore();
 
     res.status(200).json(result);
   });
@@ -76,6 +96,7 @@ export function buildServer() {
       req.params.eventId,
       req.body.attendeeWallet ?? "wallet-1"
     );
+    persistStore();
 
     res.status(200).json(reservation);
   });
@@ -85,6 +106,7 @@ export function buildServer() {
       req.params.eventId,
       req.body.attendeeWallet ?? "wallet-1"
     );
+    persistStore();
 
     res.status(200).json(reservation);
   });
@@ -115,6 +137,7 @@ export function buildServer() {
     }
 
     event.sponsorPoolFunded = amount;
+    persistStore();
     res.status(200).json(event);
   });
 
@@ -140,6 +163,7 @@ export function buildServer() {
     });
     event.status = event.settlementMode === "STRICT" ? "SETTLED" : "SETTLING";
     event.distributionStatus = result.summary.distributionStatus;
+    persistStore();
 
     res.status(200).json(result.summary);
   });
@@ -155,6 +179,7 @@ export function buildServer() {
     const reservations = reservationService.getReservations(req.params.eventId);
     const result = settlementService.preparePartyDistribution({ event, reservations });
     Object.assign(event, result.updatedEvent);
+    persistStore();
 
     res.status(200).json(result.summary);
   });
@@ -170,6 +195,7 @@ export function buildServer() {
     const reservations = reservationService.getReservations(req.params.eventId);
     const result = settlementService.prepareSponsorDistribution({ event, reservations });
     Object.assign(event, result.updatedEvent);
+    persistStore();
 
     res.status(200).json(result.summary);
   });
@@ -190,6 +216,7 @@ export function buildServer() {
         attendeeWallet: req.body.attendeeWallet
       });
       Object.assign(event, result.updatedEvent);
+      persistStore();
       res.status(200).json({ reservation: result.reservation, event });
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Party claim failed" });
@@ -212,6 +239,7 @@ export function buildServer() {
         attendeeWallet: req.body.attendeeWallet
       });
       Object.assign(event, result.updatedEvent);
+      persistStore();
       res.status(200).json({ reservation: result.reservation, event });
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Sponsor claim failed" });
@@ -230,6 +258,7 @@ export function buildServer() {
       const reservations = reservationService.getReservations(req.params.eventId);
       const updatedEvent = settlementService.finalizeEvent({ event, reservations });
       Object.assign(event, updatedEvent);
+      persistStore();
       res.status(200).json(event);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Finalize failed" });
@@ -250,6 +279,7 @@ export function buildServer() {
         reservation.checkedInAt = null;
       }
     }
+    persistStore();
 
     res.status(200).json(event);
   });

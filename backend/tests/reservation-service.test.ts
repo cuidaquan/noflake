@@ -95,4 +95,27 @@ describe("reservation service", () => {
     expect(reloadedReservationService.getReservations(event.id)).toHaveLength(1);
     rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it("marks open events as in progress once their start time passes", () => {
+    const store = createInMemoryStore();
+    const eventService = createEventService(store);
+
+    const event = eventService.createEvent({
+      title: "Started Dinner",
+      hostWallet: "host",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    const updatedEvents = eventService.advanceEventStatuses(
+      new Date("2026-05-20T20:00:00.000Z").getTime()
+    );
+
+    expect(updatedEvents).toEqual([event.id]);
+    expect(eventService.getEventById(event.id)?.status).toBe("IN_PROGRESS");
+  });
 });

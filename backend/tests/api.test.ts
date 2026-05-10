@@ -29,6 +29,35 @@ describe("backend api", () => {
     expect(fetchResponse.body.title).toBe("Dinner");
   });
 
+  it("automatically marks an open event in progress after its start time", async () => {
+    const app = buildServer();
+    const originalNow = Date.now;
+    Date.now = () => new Date("2026-05-20T20:00:00.000Z").getTime();
+
+    try {
+      const createResponse = await request(app).post("/events").send({
+        title: "Dinner",
+        hostWallet: "host",
+        venue: "Shanghai",
+        startTime: "2026-05-20T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2026-05-20T17:00:00.000Z",
+        settlementMode: "STRICT"
+      });
+
+      const tickResponse = await request(app).post("/system/tick");
+
+      expect(tickResponse.status).toBe(200);
+      expect(tickResponse.body.updatedEvents).toContain(createResponse.body.id);
+
+      const eventResponse = await request(app).get(`/events/${createResponse.body.id}`);
+      expect(eventResponse.body.status).toBe("IN_PROGRESS");
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
   it("returns organizer dashboard counts and share metadata", async () => {
     const app = buildServer();
 
