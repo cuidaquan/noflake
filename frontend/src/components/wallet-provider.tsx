@@ -6,6 +6,11 @@ import {
   useState,
   type ReactNode
 } from "react";
+import {
+  DEMO_WALLET_ADDRESS,
+  getBrowserWalletProvider,
+  getConnectedWalletAddress
+} from "../lib/wallet";
 
 const DEMO_WALLETS = [
   "wallet-demo-1",
@@ -23,6 +28,7 @@ const DEMO_WALLETS = [
 type WalletContextValue = {
   walletAddress: string | null;
   isDemoWallet: boolean;
+  browserWalletAvailable: boolean;
   demoWallets: readonly string[];
   connectWallet: () => void;
   selectDemoWallet: (walletAddress: string) => void;
@@ -32,18 +38,40 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isDemoWallet, setIsDemoWallet] = useState(true);
+  const browserWalletAvailable = Boolean(getBrowserWalletProvider());
 
   return (
     <WalletContext.Provider
       value={{
         walletAddress,
-        isDemoWallet: true,
+        isDemoWallet,
+        browserWalletAvailable,
         demoWallets: DEMO_WALLETS,
-        connectWallet() {
-          setWalletAddress(DEMO_WALLETS[0]);
+        async connectWallet() {
+          const provider = getBrowserWalletProvider();
+
+          if (provider) {
+            try {
+              await provider.connect();
+              const connectedAddress = getConnectedWalletAddress(provider);
+
+              if (connectedAddress) {
+                setWalletAddress(connectedAddress);
+                setIsDemoWallet(false);
+                return;
+              }
+            } catch {
+              // Fall back to the local demo flow when browser wallet connection is unavailable.
+            }
+          }
+
+          setWalletAddress(DEMO_WALLET_ADDRESS);
+          setIsDemoWallet(true);
         },
         selectDemoWallet(nextWalletAddress) {
           setWalletAddress(nextWalletAddress);
+          setIsDemoWallet(true);
         }
       }}
     >

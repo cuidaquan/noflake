@@ -32,7 +32,14 @@ export function ReservationCard({
   partyBonusPerAttendee,
   distributionStatus
 }: ReservationCardProps) {
-  const { walletAddress, isDemoWallet, connectWallet, demoWallets, selectDemoWallet } = useWallet();
+  const {
+    walletAddress,
+    isDemoWallet,
+    browserWalletAvailable,
+    connectWallet,
+    demoWallets,
+    selectDemoWallet
+  } = useWallet();
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -136,6 +143,11 @@ export function ReservationCard({
       <p>{venue}</p>
       <p>{depositAmount} USDC refundable deposit</p>
       <p className="inline-meta">Full refund if you cancel before the cutoff time.</p>
+      {!browserWalletAvailable ? (
+        <p className="inline-meta">
+          Browser wallet not detected. Using demo wallets for local flow.
+        </p>
+      ) : null}
       {isDemoWallet ? (
         <p className="inline-meta">
           Demo flow: wallet connect is mocked in the frontend, while contract funding is verified in
@@ -160,7 +172,7 @@ export function ReservationCard({
         </label>
       ) : null}
       <div className="wallet-row">
-        <button className="secondary-action" onClick={connectWallet} disabled={Boolean(walletAddress)}>
+        <button className="secondary-action" onClick={() => void connectWallet()} disabled={Boolean(walletAddress)}>
           Connect wallet
         </button>
         <p className="inline-meta">

@@ -3,6 +3,7 @@ import { expect, test } from "./test-helpers";
 test("attendee can reserve a seat", async ({ page }) => {
   await page.goto("/events/evt_1");
   await expect(page.getByRole("button", { name: "Connect wallet" })).toBeVisible();
+  await expect(page.getByText("Browser wallet not detected. Using demo wallets for local flow.")).toBeVisible();
   await page.getByRole("button", { name: "Connect wallet" }).click();
   await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
@@ -25,14 +26,20 @@ test("attendee can inspect event details before reserving", async ({ page, reque
     }
   });
   const event = await createResponse.json();
+  await request.post(`http://127.0.0.1:4101/events/${event.id}/reservations`, {
+    data: { attendeeWallet: "wallet-existing-1" }
+  });
+  await request.post(`http://127.0.0.1:4101/events/${event.id}/reservations`, {
+    data: { attendeeWallet: "wallet-existing-2" }
+  });
 
   await page.goto(`/events/${event.id}`);
   await expect(page.getByText("Settlement mode: STRICT")).toBeVisible();
   await expect(page.getByText("Cutoff time: 2099-05-20T17:00:00.000Z")).toBeVisible();
   await expect(page.getByText("Event status: OPEN")).toBeVisible();
   await expect(page.getByText("Seat capacity: 20")).toBeVisible();
-  await expect(page.getByText("Seats taken: 0 / 20")).toBeVisible();
-  await expect(page.getByText("Remaining seats: 20")).toBeVisible();
+  await expect(page.getByText("Seats taken: 2 / 20")).toBeVisible();
+  await expect(page.getByText("Remaining seats: 18")).toBeVisible();
   await expect(
     page.getByText("Waitlist rule: New reservations join the waitlist after all seats are taken.")
   ).toBeVisible();
