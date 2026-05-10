@@ -12,6 +12,10 @@ import {
 } from "../lib/api";
 import { formatCurrentReservationPathLabel } from "../lib/wallet-path";
 import { prepareReservationWalletIntent } from "../lib/wallet-intent";
+import {
+  buildReservationTransactionMarker,
+  buildReservationTransactionSummary
+} from "../lib/solana-transaction";
 import { useWallet } from "./wallet-provider";
 import { WalletIntentPreview } from "./wallet-intent-preview";
 
@@ -41,8 +45,10 @@ export function ReservationCard({
     isDemoWallet,
     browserWalletAvailable,
     browserWalletCanSign,
+    browserWalletCanSignTransactions,
     connectWallet,
     createWalletAuthorization,
+    createWalletTransactionSignature,
     demoWallets,
     selectDemoWallet
   } = useWallet();
@@ -117,6 +123,21 @@ export function ReservationCard({
       }
 
       if (!isDemoWallet) {
+        setAuthorizationStatus("Preparing Solana transaction...");
+      }
+
+      const transactionSignature =
+        !isDemoWallet && walletAddress
+          ? await createWalletTransactionSignature(
+              buildReservationTransactionMarker({
+                eventId,
+                attendeeWallet: walletAddress,
+                depositAmount
+              })
+            )
+          : undefined;
+
+      if (!isDemoWallet) {
         setAuthorizationStatus(activeWalletIntent?.submittingStatus ?? null);
       }
 
@@ -127,7 +148,10 @@ export function ReservationCard({
         walletAuthorization ? activeWalletIntent?.authorizationMessage : undefined,
         walletAuthorization ?? undefined
       );
-      setReservation(payload);
+      setReservation({
+        ...payload,
+        transactionSignature
+      } as ReservationDetails & { transactionSignature?: string });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Reservation failed");
     } finally {
@@ -223,6 +247,25 @@ export function ReservationCard({
           compatible wallet.
         </p>
       ) : null}
+      {browserWalletAvailable && !isDemoWallet ? (
+        <>
+          <p className="inline-meta">
+            Transaction path:{" "}
+            {browserWalletCanSignTransactions
+              ? "Browser wallet can sign transactions"
+              : "Browser wallet transaction signing unavailable"}
+          </p>
+          {browserWalletCanSignTransactions ? (
+            <p className="inline-meta">
+              {buildReservationTransactionSummary({
+                eventId,
+                attendeeWallet: walletAddress ?? "browser wallet",
+                depositAmount
+              })}
+            </p>
+          ) : null}
+        </>
+      ) : null}
       {isDemoWallet ? (
         <p className="inline-meta">
           Demo flow: wallet connect is mocked in the frontend, while contract funding is verified in
@@ -311,6 +354,10 @@ export function ReservationCard({
             <p className="inline-meta">
               Authorization payload: {reservation.walletAuthorizationMessage}
             </p>
+          ) : null}
+          {"transactionSignature" in reservation &&
+          typeof reservation.transactionSignature === "string" ? (
+            <p className="inline-meta">Transaction signature: {reservation.transactionSignature}</p>
           ) : null}
           {checkInPass && reservation.status !== "CANCELLED" ? (
             <p className="inline-meta">

@@ -30,17 +30,52 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   page
 }) => {
   await page.addInitScript(() => {
+    let releaseTransactionPreparation: (() => void) | null = null;
+    let releaseReservationRequest: (() => void) | null = null;
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (url.includes("/reservations") && init?.method === "POST") {
+        await new Promise<void>((resolve) => {
+          releaseReservationRequest = resolve;
+        });
+      }
+
+      return originalFetch(input, init);
+    };
+
     const provider = {
       publicKey: {
         toBase58: () => "wallet-browser-1"
       },
       connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-1" } }),
-      signMessage: async () => new Uint8Array([115, 105, 103])
+      signMessage: async () => new Uint8Array([115, 105, 103]),
+      signTransaction: async (transaction: unknown) => {
+        await new Promise<void>((resolve) => {
+          releaseTransactionPreparation = resolve;
+        });
+        return transaction;
+      }
     };
 
     Object.defineProperty(window, "solana", {
       configurable: true,
       value: provider
+    });
+
+    Object.defineProperty(window, "__noflakeWalletPrepTest", {
+      configurable: true,
+      value: {
+        releaseTransactionPreparation: () => releaseTransactionPreparation?.(),
+        releaseReservationRequest: () => releaseReservationRequest?.()
+      }
     });
   });
 
@@ -51,6 +86,7 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Connect wallet" }).click();
   await expect(page.getByText("Connected: wallet-browser-1")).toBeVisible();
+  await expect(page.getByText("Transaction path: Browser wallet can sign transactions")).toBeVisible();
   await expect(
     page.getByText("Wallet intent: Reserve a seat for evt_1 with wallet-browser-1")
   ).toBeVisible();
@@ -61,9 +97,33 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await expect(page.getByText("Intent target: evt_1")).toBeVisible();
   await expect(page.getByText("Settlement token: USDC")).toBeVisible();
   await expect(page.getByText("Payment path: Browser wallet connected")).toBeVisible();
-  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  const reserveClick = page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(page.getByText("Authorization status: Preparing Solana transaction...")).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeWalletPrepTest?: {
+          releaseTransactionPreparation: () => void;
+          releaseReservationRequest: () => void;
+        };
+      }
+    ).__noflakeWalletPrepTest?.releaseTransactionPreparation();
+  });
+  await expect(page.getByText("Authorization status: Signed. Submitting reservation...")).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeWalletPrepTest?: {
+          releaseTransactionPreparation: () => void;
+          releaseReservationRequest: () => void;
+        };
+      }
+    ).__noflakeWalletPrepTest?.releaseReservationRequest();
+  });
+  await reserveClick;
   await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Wallet authorization: Signed in browser wallet")).toBeVisible();
+  await expect(page.getByText(/^Transaction signature: /)).toBeVisible();
   await expect(
     page.getByText("Authorization payload: reserve:evt_1:wallet-browser-1")
   ).toHaveCount(2);
@@ -105,7 +165,8 @@ test("attendee sees browser-wallet signing progress before reservation submissio
           releaseSignature = resolve;
         });
         return new Uint8Array([115, 105, 103]);
-      }
+      },
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {
@@ -226,7 +287,8 @@ test("attendee hides browser-wallet intent preview after choosing demo fallback"
         toBase58: () => "wallet-browser-1"
       },
       connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-1" } }),
-      signMessage: async () => new Uint8Array([115, 105, 103])
+      signMessage: async () => new Uint8Array([115, 105, 103]),
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {
@@ -259,7 +321,8 @@ test("attendee can switch back to browser wallet after choosing demo fallback", 
         toBase58: () => "wallet-browser-return"
       },
       connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-return" } }),
-      signMessage: async () => new Uint8Array([115, 105, 103])
+      signMessage: async () => new Uint8Array([115, 105, 103]),
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {

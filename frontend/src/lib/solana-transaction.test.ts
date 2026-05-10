@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCreateEventTransactionMarker,
-  buildCreateEventTransactionSummary
+  buildCreateEventTransactionSummary,
+  buildReservationTransactionMarker,
+  buildReservationTransactionSummary
 } from "./solana-transaction";
 
 describe("solana transaction helpers", () => {
@@ -25,5 +27,25 @@ describe("solana transaction helpers", () => {
         seatCount: 24
       })
     ).toBe("Prepare create-event transaction for Builder Dinner with 20 USDC and 24 seats");
+  });
+
+  it("builds a stable attendee reservation transaction marker", () => {
+    expect(
+      buildReservationTransactionMarker({
+        eventId: "evt_1",
+        attendeeWallet: "wallet-browser-1",
+        depositAmount: 20
+      })
+    ).toBe("reserve:evt_1:wallet-browser-1:20");
+  });
+
+  it("builds a readable attendee reservation transaction summary", () => {
+    expect(
+      buildReservationTransactionSummary({
+        eventId: "evt_1",
+        attendeeWallet: "wallet-browser-1",
+        depositAmount: 20
+      })
+    ).toBe("Prepare reservation transaction for evt_1 with 20 USDC from wallet-browser-1");
   });
 });
