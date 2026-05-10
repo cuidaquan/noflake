@@ -1510,6 +1510,164 @@ describe("noflake", () => {
     );
   });
 
+  it("does not finalize a party event before distribution is prepared", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const checkedIn = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, checkedIn);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(finalizeTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("does not finalize a party event before all eligible attendees claim", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const checkedInOne = anchor.web3.Keypair.generate();
+    const checkedInTwo = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, checkedInOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, checkedInTwo);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    await claimPartyBonus({ attendee: checkedInOne, eventPda, reservationPda: checkedInOneReservation });
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(finalizeTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("finalizes a party event after all eligible attendees claim", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const checkedInOne = anchor.web3.Keypair.generate();
+    const checkedInTwo = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, checkedInOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, checkedInTwo);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+    const fundingConfig = getFundingConfig(eventPda);
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    await claimPartyBonus({ attendee: checkedInOne, eventPda, reservationPda: checkedInOneReservation });
+    await claimPartyBonus({ attendee: checkedInTwo, eventPda, reservationPda: checkedInTwoReservation });
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+    await sendTransaction(finalizeTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const vaultBalanceAfterFinalize = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("settled");
+    expect(event.partyBonusPrepared).to.equal(true);
+    expect(event.partyBonusClaimedCount).to.equal(2);
+    expect(vaultBalanceAfterFinalize).to.equal(0n);
+  });
+
   it("rejects settling a waitlisted reservation", async () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();

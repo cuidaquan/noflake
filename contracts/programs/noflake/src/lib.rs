@@ -529,6 +529,17 @@ pub mod noflake {
             NoflakeError::EventNotReadyToFinalize
         );
 
+        if event.settlement_mode == SettlementMode::Party {
+            require!(
+                event.party_bonus_prepared,
+                NoflakeError::EventNotReadyToFinalize
+            );
+            require!(
+                event.party_bonus_claimed_count == event.checked_in_count,
+                NoflakeError::EventNotReadyToFinalize
+            );
+        }
+
         event.status = EventStatus::Settled;
         Ok(())
     }
