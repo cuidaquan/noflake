@@ -17,6 +17,10 @@ describe("wallet intent helpers", () => {
     expect(intent.awaitingSignatureStatus).toBe("Awaiting browser wallet signature...");
     expect(intent.submittingStatus).toBe("Signed. Submitting reservation...");
     expect(intent.authorizationMessage).toBe("reserve:evt_1:wallet-1");
+    expect(intent.preflight.action).toBe("reserve");
+    expect(intent.preflight.subject).toBe("evt_1");
+    expect(intent.preflight.summary).toBe("Reserve a seat for evt_1 with wallet-1");
+    expect(intent.preflight.paymentToken).toBe("USDC");
     await expect(intent.sign()).resolves.toBe("signed:reserve:evt_1:wallet-1");
   });
 
@@ -32,6 +36,10 @@ describe("wallet intent helpers", () => {
     expect(intent.awaitingSignatureStatus).toBe("Awaiting browser wallet signature...");
     expect(intent.submittingStatus).toBe("Signed. Submitting event...");
     expect(intent.authorizationMessage).toBe("create-event:host-1:Builder Dinner");
+    expect(intent.preflight.action).toBe("create-event");
+    expect(intent.preflight.subject).toBe("Builder Dinner");
+    expect(intent.preflight.summary).toBe("Create event Builder Dinner with host-1");
+    expect(intent.preflight.paymentToken).toBe("USDC");
     await expect(intent.sign()).resolves.toBe("signed:create-event:host-1:Builder Dinner");
   });
 });

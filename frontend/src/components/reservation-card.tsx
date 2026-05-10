@@ -47,6 +47,20 @@ export function ReservationCard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [authorizationStatus, setAuthorizationStatus] = useState<string | null>(null);
+  const walletIntent =
+    browserWalletAvailable && (walletAddress || !isDemoWallet)
+      ? prepareReservationWalletIntent({
+          eventId,
+          walletAddress: walletAddress ?? "browser wallet",
+          createAuthorization: createWalletAuthorization
+        })
+      : browserWalletAvailable
+        ? prepareReservationWalletIntent({
+            eventId,
+            walletAddress: "browser wallet",
+            createAuthorization: createWalletAuthorization
+          })
+        : null;
   const checkInPass =
     reservation && walletAddress
       ? `/check-in/${eventId}?attendeeWallet=${encodeURIComponent(walletAddress)}`
@@ -78,7 +92,7 @@ export function ReservationCard({
     setAuthorizationStatus(null);
 
     try {
-      const walletIntent =
+      const activeWalletIntent =
         !isDemoWallet && walletAddress
           ? prepareReservationWalletIntent({
               eventId,
@@ -88,18 +102,18 @@ export function ReservationCard({
           : null;
 
       if (!isDemoWallet) {
-        setAuthorizationStatus(walletIntent?.awaitingSignatureStatus ?? null);
+        setAuthorizationStatus(activeWalletIntent?.awaitingSignatureStatus ?? null);
       }
 
       const walletAuthorization =
-        walletIntent ? await walletIntent.sign() : undefined;
+        activeWalletIntent ? await activeWalletIntent.sign() : undefined;
 
       if (!isDemoWallet && !walletAuthorization) {
         throw new Error("Browser wallet authorization is required before reserving.");
       }
 
       if (!isDemoWallet) {
-        setAuthorizationStatus(walletIntent?.submittingStatus ?? null);
+        setAuthorizationStatus(activeWalletIntent?.submittingStatus ?? null);
       }
 
       const payload = await createReservation(
@@ -173,6 +187,11 @@ export function ReservationCard({
 
   return (
     <section className="panel">
+      {walletIntent ? (
+        <p className="inline-meta">
+          Wallet intent: {walletIntent.preflight.summary}
+        </p>
+      ) : null}
       <p className="eyebrow">ATTENDEE FLOW</p>
       <h1>{title}</h1>
       <p>{venue}</p>

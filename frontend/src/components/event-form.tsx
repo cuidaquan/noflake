@@ -38,6 +38,13 @@ export function EventForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hostAuthorizationStatus, setHostAuthorizationStatus] = useState<string | null>(null);
+  const walletIntent = browserWalletAvailable
+    ? prepareCreateEventWalletIntent({
+        hostWallet: walletAddress ?? "browser wallet",
+        title: title || "Untitled event",
+        createAuthorization: createWalletAuthorization
+      })
+    : null;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +53,7 @@ export function EventForm() {
     setHostAuthorizationStatus(null);
 
     try {
-      const walletIntent =
+      const activeWalletIntent =
         !isDemoWallet && walletAddress
           ? prepareCreateEventWalletIntent({
               hostWallet: walletAddress,
@@ -56,18 +63,18 @@ export function EventForm() {
           : null;
 
       if (!isDemoWallet) {
-        setHostAuthorizationStatus(walletIntent?.awaitingSignatureStatus ?? null);
+        setHostAuthorizationStatus(activeWalletIntent?.awaitingSignatureStatus ?? null);
       }
 
       const hostWalletAuthorization =
-        walletIntent ? await walletIntent.sign() : undefined;
+        activeWalletIntent ? await activeWalletIntent.sign() : undefined;
 
       if (!isDemoWallet && !hostWalletAuthorization) {
         throw new Error("Browser host wallet authorization is required before creating an event.");
       }
 
       if (!isDemoWallet) {
-        setHostAuthorizationStatus(walletIntent?.submittingStatus ?? null);
+        setHostAuthorizationStatus(activeWalletIntent?.submittingStatus ?? null);
       }
 
       const response = await createEvent({
@@ -96,6 +103,11 @@ export function EventForm() {
   return (
     <div className="flow-grid">
       <form className="panel" onSubmit={handleSubmit}>
+        {walletIntent ? (
+          <p className="inline-meta">
+            Host wallet intent: {walletIntent.preflight.summary}
+          </p>
+        ) : null}
         <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
         <p className="inline-meta">
           Host wallet path:{" "}
