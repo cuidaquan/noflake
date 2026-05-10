@@ -33,6 +33,8 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   const [eventCancelled, setEventCancelled] = useState(false);
   const [sponsorPoolAmount, setSponsorPoolAmount] = useState("30");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [scanPayload, setScanPayload] = useState("");
+  const [scannedAttendeeWallet, setScannedAttendeeWallet] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPage() {
@@ -49,6 +51,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   }, [eventId]);
 
   async function handleCheckIn(attendeeWallet: string) {
+    setActionError(null);
     setLoadingWallet(attendeeWallet);
 
     try {
@@ -105,6 +108,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   }
 
   async function handleUndoCheckIn(attendeeWallet: string) {
+    setActionError(null);
     setLoadingWallet(attendeeWallet);
 
     try {
@@ -120,11 +124,36 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   }
 
   async function handleCancelEvent() {
+    setActionError(null);
     const updatedEvent = await cancelEvent(eventId);
     const updatedReservations = await getReservations(eventId);
     setEvent(updatedEvent);
     setReservations(updatedReservations);
     setEventCancelled(true);
+  }
+
+  function handleApplyScanPayload() {
+    setActionError(null);
+
+    try {
+      const parsed = new URL(scanPayload, window.location.origin);
+      const match = parsed.pathname.match(/^\/check-in\/([^/]+)$/);
+      const payloadEventId = match?.[1];
+      const attendeeWallet = parsed.searchParams.get("attendeeWallet");
+
+      if (!payloadEventId || payloadEventId !== eventId) {
+        throw new Error("Scanned payload does not match this event");
+      }
+
+      if (!attendeeWallet) {
+        throw new Error("Scanned payload is missing attendee wallet");
+      }
+
+      setScannedAttendeeWallet(attendeeWallet);
+    } catch (error) {
+      setScannedAttendeeWallet(null);
+      setActionError(error instanceof Error ? error.message : "Failed to parse scan payload");
+    }
   }
 
   async function handleFundSponsorPool() {
@@ -171,6 +200,20 @@ export default function CheckInPage({ params }: CheckInPageProps) {
             </button>
           </section>
         ) : null}
+
+        <section className="panel">
+          <p className="eyebrow">SCAN CHECK-IN PASS</p>
+          <label className="field">
+            <span>Scan payload</span>
+            <input value={scanPayload} onChange={(event) => setScanPayload(event.target.value)} />
+          </label>
+          <button className="secondary-action" onClick={handleApplyScanPayload}>
+            Apply Scan Payload
+          </button>
+          {scannedAttendeeWallet ? (
+            <p className="success-text">Scanned attendee: {scannedAttendeeWallet}</p>
+          ) : null}
+        </section>
 
         <section className="flow-grid">
           {reservations.map((reservation) => (

@@ -28,6 +28,7 @@ export type EventDashboard = {
   settlementMode: "STRICT" | "PARTY" | "SPONSOR";
   seatCount: number;
   shareUrl: string;
+  checkInUrl: string;
   qrValue: string;
   counts: {
     reserved: number;

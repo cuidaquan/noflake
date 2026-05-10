@@ -18,6 +18,7 @@ test("organizer sees share link, QR payload, and dashboard counts after creating
   await page.getByLabel("Deposit Amount").fill("20");
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page.getByText(/^Share link:/)).toBeVisible();
+  await expect(page.getByText(/^Check-in console:/)).toBeVisible();
   await expect(page.getByText(/^QR payload:/)).toBeVisible();
   await expect(page.getByText("Reserved")).toBeVisible();
 });

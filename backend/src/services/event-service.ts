@@ -68,6 +68,7 @@ export function createEventService(store: InMemoryStore) {
         settlementMode: event.settlementMode,
         seatCount: event.seatCount,
         shareUrl: `${FRONTEND_BASE_URL}/events/${event.id}`,
+        checkInUrl: `${FRONTEND_BASE_URL}/check-in/${event.id}`,
         qrValue: `${FRONTEND_BASE_URL}/events/${event.id}`,
         counts: {
           reserved: reservations.filter((reservation) => reservation.status === "RESERVED").length,

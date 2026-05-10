@@ -118,6 +118,7 @@ describe("backend api", () => {
     expect(response.status).toBe(200);
     expect(response.body.shareUrl).toContain(`/events/${createResponse.body.id}`);
     expect(response.body.qrValue).toContain(`/events/${createResponse.body.id}`);
+    expect(response.body.checkInUrl).toContain(`/check-in/${createResponse.body.id}`);
     expect(response.body.counts.reserved).toBeTypeOf("number");
   });
 

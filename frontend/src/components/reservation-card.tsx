@@ -36,6 +36,10 @@ export function ReservationCard({
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const checkInPass =
+    reservation && walletAddress
+      ? `/check-in/${eventId}?attendeeWallet=${encodeURIComponent(walletAddress)}`
+      : null;
 
   useEffect(() => {
     async function syncReservation() {
@@ -196,11 +200,18 @@ export function ReservationCard({
       ) : null}
 
       {reservation ? (
-        <p className="success-text">
-          {reservation.status === "CANCELLED"
-            ? `Reservation cancelled for ${reservation.attendeeWallet}`
-            : `Reservation status: ${reservation.status} for ${reservation.attendeeWallet}`}
-        </p>
+        <>
+          <p className="success-text">
+            {reservation.status === "CANCELLED"
+              ? `Reservation cancelled for ${reservation.attendeeWallet}`
+              : `Reservation status: ${reservation.status} for ${reservation.attendeeWallet}`}
+          </p>
+          {checkInPass && reservation.status !== "CANCELLED" ? (
+            <p className="inline-meta">
+              Check-in pass: <code data-testid="checkin-pass-payload">{checkInPass}</code>
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       {reservation?.partyBonusClaimed ? <p className="success-text">Party bonus claimed</p> : null}

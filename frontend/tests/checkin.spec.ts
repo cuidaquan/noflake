@@ -7,6 +7,23 @@ test("organizer can check in attendee and settle event", async ({ page }) => {
   await expect(page.getByText("Settlement complete")).toBeVisible();
 });
 
+test("organizer can apply a scanned check-in payload and check in the matching attendee", async ({
+  page
+}) => {
+  await page.goto("/events/evt_cancel");
+  await page.getByLabel("Demo wallet").selectOption("wallet-undo-1");
+  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(page.getByText(/Check-in pass:/)).toBeVisible();
+  const payload = await page.getByTestId("checkin-pass-payload").textContent();
+
+  await page.goto("/check-in/evt_cancel");
+  await page.getByLabel("Scan payload").fill(payload ?? "");
+  await page.getByRole("button", { name: "Apply Scan Payload" }).click();
+  await expect(page.getByText("Scanned attendee: wallet-undo-1")).toBeVisible();
+  await page.getByRole("button", { name: "Check In wallet-undo-1" }).click();
+  await expect(page.getByText("Status: CHECKED_IN")).toBeVisible();
+});
+
 test("settlement page shows party bonus when the event is in party mode", async ({ page }) => {
   await page.goto("/check-in/evt_party");
   await page.getByRole("button", { name: "Settle Event" }).click();

@@ -7,6 +7,8 @@ test("attendee can reserve a seat", async ({ page }) => {
   await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
   await expect(page.getByText("Reservation status: RESERVED")).toBeVisible();
+  await expect(page.getByText(/^Check-in pass:/)).toBeVisible();
+  await expect(page.getByText(/\/check-in\/evt_1\?attendeeWallet=wallet-demo-1/)).toBeVisible();
 });
 
 test("attendee can inspect event details before reserving", async ({ page }) => {
