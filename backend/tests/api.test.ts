@@ -203,6 +203,37 @@ describe("backend api", () => {
     expect(reservationsResponse.body[0].paymentPath).toBe("BROWSER_WALLET");
   });
 
+  it("stores browser wallet authorization proof on browser-wallet reservations", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Signed Reservation Dinner",
+      hostWallet: "host",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    const reserveResponse = await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({
+        attendeeWallet: "wallet-browser-2",
+        paymentPath: "BROWSER_WALLET",
+        walletAuthorization: "signed-intent-proof"
+      });
+
+    expect(reserveResponse.status).toBe(201);
+    expect(reserveResponse.body.walletAuthorization).toBe("signed-intent-proof");
+
+    const reservationsResponse = await request(app).get(
+      `/events/${createResponse.body.id}/reservations`
+    );
+    expect(reservationsResponse.body[0].walletAuthorization).toBe("signed-intent-proof");
+  });
+
   it("runs sponsor settlement as settle -> prepare instead of one-pass completion", async () => {
     const app = buildServer();
 

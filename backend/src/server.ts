@@ -90,7 +90,8 @@ export function buildServer(options: BuildServerOptions = {}) {
     const reservation = reservationService.reserveSeat(
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet",
-      req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND"
+      req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND",
+      typeof req.body.walletAuthorization === "string" ? req.body.walletAuthorization : undefined
     );
     persistStore();
 

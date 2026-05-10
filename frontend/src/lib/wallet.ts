@@ -6,6 +6,7 @@ type SolanaProvider = {
     toBase58: () => string;
   };
   connect: () => Promise<unknown>;
+  signMessage?: (message: Uint8Array) => Promise<Uint8Array>;
 };
 
 export function getBrowserWalletProvider(): SolanaProvider | null {
@@ -26,4 +27,25 @@ export function getBrowserWalletProvider(): SolanaProvider | null {
 
 export function getConnectedWalletAddress(provider: SolanaProvider | null): string | null {
   return provider?.publicKey?.toBase58?.() ?? null;
+}
+
+function toBase64(bytes: Uint8Array) {
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary);
+}
+
+export async function signWalletAuthorization(message: string): Promise<string | null> {
+  const provider = getBrowserWalletProvider();
+
+  if (!provider?.signMessage) {
+    return null;
+  }
+
+  const signature = await provider.signMessage(new TextEncoder().encode(message));
+  return toBase64(signature);
 }

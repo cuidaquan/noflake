@@ -37,6 +37,7 @@ export function ReservationCard({
     isDemoWallet,
     browserWalletAvailable,
     connectWallet,
+    createWalletAuthorization,
     demoWallets,
     selectDemoWallet
   } = useWallet();
@@ -73,10 +74,15 @@ export function ReservationCard({
     setErrorMessage(null);
 
     try {
+      const walletAuthorization =
+        !isDemoWallet && walletAddress
+          ? await createWalletAuthorization(`reserve:${eventId}:${walletAddress}`)
+          : undefined;
       const payload = await createReservation(
         eventId,
         walletAddress,
-        isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET"
+        isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
+        walletAuthorization ?? undefined
       );
       setReservation(payload);
     } catch (error) {
@@ -148,7 +154,14 @@ export function ReservationCard({
       <p>{depositAmount} USDC refundable deposit</p>
       <p className="inline-meta">Full refund if you cancel before the cutoff time.</p>
       <p className="inline-meta">
-        Payment path: {isDemoWallet ? "Demo backend reservation" : "Browser wallet connected"}
+        Payment path:{" "}
+        {walletAddress
+          ? isDemoWallet
+            ? "Demo backend reservation"
+            : "Browser wallet connected"
+          : browserWalletAvailable
+            ? "Browser wallet available"
+            : "Demo backend reservation"}
       </p>
       {!browserWalletAvailable ? (
         <p className="inline-meta">
@@ -231,6 +244,9 @@ export function ReservationCard({
               ? "Browser wallet"
               : "Demo backend reservation"}
           </p>
+          {reservation.walletAuthorization ? (
+            <p className="inline-meta">Wallet authorization: Signed in browser wallet</p>
+          ) : null}
           {checkInPass && reservation.status !== "CANCELLED" ? (
             <p className="inline-meta">
               Check-in pass: <code data-testid="checkin-pass-payload">{checkInPass}</code>

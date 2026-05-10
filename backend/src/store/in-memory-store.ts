@@ -30,6 +30,7 @@ export type ReservationRecord = {
   eventId: string;
   attendeeWallet: string;
   paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  walletAuthorization?: string;
   status: ReservationStatus;
   paidAmount: number;
   createdAt: string;

@@ -9,7 +9,8 @@ import {
 import {
   DEMO_WALLET_ADDRESS,
   getBrowserWalletProvider,
-  getConnectedWalletAddress
+  getConnectedWalletAddress,
+  signWalletAuthorization
 } from "../lib/wallet";
 
 const DEMO_WALLETS = [
@@ -31,6 +32,7 @@ type WalletContextValue = {
   browserWalletAvailable: boolean;
   demoWallets: readonly string[];
   connectWallet: () => void;
+  createWalletAuthorization: (message: string) => Promise<string | null>;
   selectDemoWallet: (walletAddress: string) => void;
 };
 
@@ -68,6 +70,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
           setWalletAddress(DEMO_WALLET_ADDRESS);
           setIsDemoWallet(true);
+        },
+        createWalletAuthorization(message) {
+          return signWalletAuthorization(message);
         },
         selectDemoWallet(nextWalletAddress) {
           setWalletAddress(nextWalletAddress);
