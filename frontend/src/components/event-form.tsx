@@ -226,6 +226,12 @@ export function EventForm() {
           <h2>{createdEvent.title}</h2>
           <p>{createdEvent.venue}</p>
           <p>Host wallet: {createdEvent.hostWallet}</p>
+          <p>
+            Created path:{" "}
+            {createdEvent.creationPath === "BROWSER_WALLET"
+              ? "Browser wallet"
+              : "Demo backend host"}
+          </p>
           {createdEvent.hostWalletAuthorization ? (
             <p className="inline-meta">Host authorization: Signed in browser wallet</p>
           ) : null}

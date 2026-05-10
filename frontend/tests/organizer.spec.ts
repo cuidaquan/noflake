@@ -12,6 +12,7 @@ test("organizer can create an event", async ({ page }) => {
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page.getByText("Builder Dinner")).toBeVisible();
   await expect(page.getByText(/^Host wallet: wallet-demo-1$/)).toBeVisible();
+  await expect(page.getByText("Created path: Demo backend host")).toBeVisible();
 });
 
 test("organizer uses the browser wallet creation path when an injected wallet is available", async ({
@@ -50,6 +51,7 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await page.getByLabel("Deposit Amount").fill("20");
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page.getByText(/^Host wallet: host-browser-1$/)).toBeVisible();
+  await expect(page.getByText("Created path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
   await expect(
     page.getByText("Host authorization payload: create-event:host-browser-1:Browser Host Dinner")
