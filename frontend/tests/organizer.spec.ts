@@ -139,6 +139,35 @@ test("organizer sees browser-wallet signing progress before event creation compl
   await expect(page.getByText(/^Host wallet: host-browser-delayed$/)).toBeVisible();
 });
 
+test("organizer sees an authorization error when the browser wallet cannot sign event creation", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "host-browser-nosign"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "host-browser-nosign" } })
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/organizer");
+  await page.getByRole("button", { name: "Connect host wallet" }).click();
+  await expect(page.getByText("Connected host wallet: host-browser-nosign")).toBeVisible();
+  await page.getByLabel("Title").fill("Unsigned Host Dinner");
+  await page.getByLabel("Venue").fill("Shanghai");
+  await page.getByLabel("Deposit Amount").fill("20");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(
+    page.getByText("Browser host wallet authorization is required before creating an event.")
+  ).toBeVisible();
+});
+
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({
   page
 }) => {
