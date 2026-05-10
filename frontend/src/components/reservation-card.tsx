@@ -73,7 +73,11 @@ export function ReservationCard({
     setErrorMessage(null);
 
     try {
-      const payload = await createReservation(eventId, walletAddress);
+      const payload = await createReservation(
+        eventId,
+        walletAddress,
+        isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET"
+      );
       setReservation(payload);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Reservation failed");
@@ -220,6 +224,12 @@ export function ReservationCard({
             {reservation.status === "CANCELLED"
               ? `Reservation cancelled for ${reservation.attendeeWallet}`
               : `Reservation status: ${reservation.status} for ${reservation.attendeeWallet}`}
+          </p>
+          <p className="inline-meta">
+            Reservation path:{" "}
+            {reservation.paymentPath === "BROWSER_WALLET"
+              ? "Browser wallet"
+              : "Demo backend reservation"}
           </p>
           {checkInPass && reservation.status !== "CANCELLED" ? (
             <p className="inline-meta">

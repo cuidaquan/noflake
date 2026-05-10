@@ -44,6 +44,7 @@ export type ReservationDetails = {
   id: string;
   eventId: string;
   attendeeWallet: string;
+  paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
   status: string;
   paidAmount: number;
   createdAt: string;
@@ -162,14 +163,15 @@ export async function settleEvent(eventId: string): Promise<SettlementSummary> {
 
 export async function reserveSeat(
   eventId: string,
-  attendeeWallet: string
+  attendeeWallet: string,
+  paymentPath: "DEMO_BACKEND" | "BROWSER_WALLET" = "DEMO_BACKEND"
 ): Promise<ReservationDetails> {
   const response = await fetch(`${API_BASE_URL}/events/${eventId}/reservations`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ attendeeWallet })
+    body: JSON.stringify({ attendeeWallet, paymentPath })
   });
 
   if (!response.ok) {

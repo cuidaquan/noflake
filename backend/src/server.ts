@@ -89,7 +89,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events/:eventId/reservations", (req, res) => {
     const reservation = reservationService.reserveSeat(
       req.params.eventId,
-      req.body.attendeeWallet ?? "demo-attendee-wallet"
+      req.body.attendeeWallet ?? "demo-attendee-wallet",
+      req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND"
     );
     persistStore();
 

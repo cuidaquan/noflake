@@ -272,7 +272,11 @@ export function createReservationService(store: InMemoryStore) {
       return ensureEvent(eventId);
     },
 
-    reserveSeat(eventId: string, attendeeWallet: string): ReservationRecord {
+    reserveSeat(
+      eventId: string,
+      attendeeWallet: string,
+      paymentPath: "DEMO_BACKEND" | "BROWSER_WALLET" = "DEMO_BACKEND"
+    ): ReservationRecord {
       const event = ensureEvent(eventId);
 
       if (!event) {
@@ -301,6 +305,7 @@ export function createReservationService(store: InMemoryStore) {
         id: `res_${store.reservations.length + 1}`,
         eventId,
         attendeeWallet,
+        paymentPath,
         status,
         paidAmount: event.depositAmount,
         createdAt: new Date().toISOString(),
