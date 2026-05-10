@@ -271,7 +271,7 @@ test("attendee can switch back to browser wallet after choosing demo fallback", 
   await page.goto("/events/evt_1");
   await expect(page.getByLabel("Demo wallet")).toBeVisible();
   await page.getByLabel("Demo wallet").selectOption("wallet-demo-1");
-  await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
+  await expect(page.getByLabel("Demo wallet")).toHaveValue("wallet-demo-1");
   await expect(page.getByText("Payment path: Demo backend reservation")).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect wallet" })).toBeEnabled();
   await page.getByRole("button", { name: "Connect wallet" }).click();

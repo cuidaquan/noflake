@@ -10,6 +10,7 @@ import {
   reserveSeat as createReservation,
   type ReservationDetails
 } from "../lib/api";
+import { formatCurrentReservationPathLabel } from "../lib/wallet-path";
 import { prepareReservationWalletIntent } from "../lib/wallet-intent";
 import { useWallet } from "./wallet-provider";
 import { WalletIntentPreview } from "./wallet-intent-preview";
@@ -205,13 +206,11 @@ export function ReservationCard({
       <p className="inline-meta">Full refund if you cancel before the cutoff time.</p>
       <p className="inline-meta">
         Payment path:{" "}
-        {walletAddress
-          ? isDemoWallet
-            ? "Demo backend reservation"
-            : "Browser wallet connected"
-          : browserWalletAvailable
-            ? "Browser wallet available"
-            : "Demo backend reservation"}
+        {formatCurrentReservationPathLabel({
+          walletAddress,
+          isDemoWallet,
+          browserWalletAvailable
+        })}
       </p>
       {!browserWalletAvailable ? (
         <p className="inline-meta">

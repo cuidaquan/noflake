@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCreationPathLabel } from "../../../shared/src/constants";
 import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
+import { formatCurrentHostPathLabel } from "../lib/wallet-path";
 import { prepareCreateEventWalletIntent } from "../lib/wallet-intent";
 import { useWallet } from "./wallet-provider";
 import { WalletIntentPreview } from "./wallet-intent-preview";
@@ -121,13 +122,11 @@ export function EventForm() {
         <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
         <p className="inline-meta">
           Host wallet path:{" "}
-          {walletAddress
-            ? isDemoWallet
-              ? formatCreationPathLabel("DEMO_BACKEND")
-              : "Browser wallet connected"
-            : browserWalletAvailable
-              ? "Browser wallet available"
-              : formatCreationPathLabel("DEMO_BACKEND")}
+          {formatCurrentHostPathLabel({
+            walletAddress,
+            isDemoWallet,
+            browserWalletAvailable
+          })}
         </p>
         {browserWalletAvailable && !browserWalletCanSign ? (
           <p className="inline-meta">
