@@ -143,6 +143,9 @@ export function ReservationCard({
       <p>{venue}</p>
       <p>{depositAmount} USDC refundable deposit</p>
       <p className="inline-meta">Full refund if you cancel before the cutoff time.</p>
+      <p className="inline-meta">
+        Payment path: {isDemoWallet ? "Demo backend reservation" : "Browser wallet connected"}
+      </p>
       {!browserWalletAvailable ? (
         <p className="inline-meta">
           Browser wallet not detected. Using demo wallets for local flow.
