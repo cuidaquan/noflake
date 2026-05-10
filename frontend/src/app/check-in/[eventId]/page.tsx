@@ -4,6 +4,8 @@ import { use, useEffect, useState } from "react";
 import {
   cancelEvent,
   checkInAttendee,
+  finalizeEvent,
+  fundSponsorPool,
   getEvent,
   getReservations,
   preparePartyDistribution,
@@ -29,6 +31,8 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   const [loadingWallet, setLoadingWallet] = useState<string | null>(null);
   const [isSettling, setIsSettling] = useState(false);
   const [eventCancelled, setEventCancelled] = useState(false);
+  const [sponsorPoolAmount, setSponsorPoolAmount] = useState("30");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPage() {
@@ -75,17 +79,29 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   }
 
   async function handlePreparePartyDistribution() {
-    const summary = await preparePartyDistribution(eventId);
-    const updatedEvent = await getEvent(eventId);
-    setSettlement(summary);
-    setEvent(updatedEvent);
+    setActionError(null);
+
+    try {
+      const summary = await preparePartyDistribution(eventId);
+      const updatedEvent = await getEvent(eventId);
+      setSettlement(summary);
+      setEvent(updatedEvent);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to prepare party distribution");
+    }
   }
 
   async function handlePrepareSponsorDistribution() {
-    const summary = await prepareSponsorDistribution(eventId);
-    const updatedEvent = await getEvent(eventId);
-    setSettlement(summary);
-    setEvent(updatedEvent);
+    setActionError(null);
+
+    try {
+      const summary = await prepareSponsorDistribution(eventId);
+      const updatedEvent = await getEvent(eventId);
+      setSettlement(summary);
+      setEvent(updatedEvent);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to prepare sponsor distribution");
+    }
   }
 
   async function handleUndoCheckIn(attendeeWallet: string) {
@@ -111,6 +127,28 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     setEventCancelled(true);
   }
 
+  async function handleFundSponsorPool() {
+    setActionError(null);
+
+    try {
+      const updatedEvent = await fundSponsorPool(eventId, Number(sponsorPoolAmount));
+      setEvent(updatedEvent);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to fund sponsor pool");
+    }
+  }
+
+  async function handleFinalizeEvent() {
+    setActionError(null);
+
+    try {
+      const updatedEvent = await finalizeEvent(eventId);
+      setEvent(updatedEvent);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to finalize event");
+    }
+  }
+
   return (
     <main className="page-shell">
       <section className="hero-card">
@@ -120,6 +158,19 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           Check attendees in at the door, settle deposits first, then prepare any Party or Sponsor
           bonus distribution before the event is fully done.
         </p>
+
+        {event?.settlementMode === "SPONSOR" && event.status === "OPEN" ? (
+          <section className="panel">
+            <p className="eyebrow">SPONSOR FUNDING</p>
+            <label className="field">
+              <span>Sponsor pool amount</span>
+              <input value={sponsorPoolAmount} onChange={(event) => setSponsorPoolAmount(event.target.value)} />
+            </label>
+            <button className="secondary-action" onClick={() => void handleFundSponsorPool()}>
+              Fund Sponsor Pool
+            </button>
+          </section>
+        ) : null}
 
         <section className="flow-grid">
           {reservations.map((reservation) => (
@@ -166,12 +217,26 @@ export default function CheckInPage({ params }: CheckInPageProps) {
               Prepare Sponsor Distribution
             </button>
           ) : null}
+          {event?.settlementMode !== "STRICT" ? (
+            <button
+              className="secondary-action"
+              onClick={() => void handleFinalizeEvent()}
+              disabled={event?.distributionStatus !== "COMPLETED"}
+            >
+              Finalize Event
+            </button>
+          ) : null}
           <button className="secondary-action" onClick={handleCancelEvent}>
             Cancel Event
           </button>
         </div>
 
         {eventCancelled ? <p className="success-text">Event cancelled</p> : null}
+        {event?.status === "SETTLED" ? <p className="success-text">Event finalized</p> : null}
+        {event?.distributionStatus ? (
+          <p className="inline-meta">Distribution status: {event.distributionStatus}</p>
+        ) : null}
+        {actionError ? <p className="error-text">{actionError}</p> : null}
 
         {settlement ? (
           <section className="panel settlement-panel">

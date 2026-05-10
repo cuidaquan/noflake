@@ -47,10 +47,10 @@ export function createReservationService(store: InMemoryStore) {
       };
     }
 
-    if (eventId === "evt_sponsor") {
+    if (eventId === "evt_sponsor" || eventId === "evt_sponsor_funding") {
       return {
-        id: "evt_sponsor",
-        title: "Builder Sponsor Dinner",
+        id: eventId,
+        title: eventId === "evt_sponsor" ? "Builder Sponsor Dinner" : "Builder Sponsor Funding Demo",
         hostWallet: "demo-host-wallet",
         venue: "Shanghai",
         startTime: "2026-05-20T19:00:00.000Z",
@@ -59,7 +59,7 @@ export function createReservationService(store: InMemoryStore) {
         cutoffTime: "2026-05-20T17:00:00.000Z",
         settlementMode: "SPONSOR" as const,
         distributionStatus: "PENDING" as const,
-        sponsorPoolFunded: 30,
+        sponsorPoolFunded: eventId === "evt_sponsor" ? 30 : undefined,
         status: "OPEN" as const
       };
     }
@@ -105,6 +105,7 @@ export function createReservationService(store: InMemoryStore) {
       eventId !== "evt_1" &&
       eventId !== "evt_party" &&
       eventId !== "evt_sponsor" &&
+      eventId !== "evt_sponsor_funding" &&
       eventId !== "evt_cancel" &&
       eventId !== "evt_undo"
     ) {
@@ -161,10 +162,15 @@ export function createReservationService(store: InMemoryStore) {
       return;
     }
 
-    if (eventId === "evt_party" || eventId === "evt_sponsor") {
+    if (eventId === "evt_party" || eventId === "evt_sponsor" || eventId === "evt_sponsor_funding") {
       store.reservations.push(
         {
-          id: eventId === "evt_party" ? "res_party_1" : "res_sponsor_1",
+          id:
+            eventId === "evt_party"
+              ? "res_party_1"
+              : eventId === "evt_sponsor"
+                ? "res_sponsor_1"
+                : "res_sponsor_funding_1",
           eventId,
           attendeeWallet: eventId === "evt_party" ? "wallet-party-1" : "wallet-sponsor-1",
           status: "CHECKED_IN",
@@ -174,7 +180,12 @@ export function createReservationService(store: InMemoryStore) {
           waitlistOrder: null
         },
         {
-          id: eventId === "evt_party" ? "res_party_2" : "res_sponsor_2",
+          id:
+            eventId === "evt_party"
+              ? "res_party_2"
+              : eventId === "evt_sponsor"
+                ? "res_sponsor_2"
+                : "res_sponsor_funding_2",
           eventId,
           attendeeWallet: eventId === "evt_party" ? "wallet-party-2" : "wallet-sponsor-2",
           status: "CHECKED_IN",
@@ -184,7 +195,12 @@ export function createReservationService(store: InMemoryStore) {
           waitlistOrder: null
         },
         {
-          id: eventId === "evt_party" ? "res_party_3" : "res_sponsor_3",
+          id:
+            eventId === "evt_party"
+              ? "res_party_3"
+              : eventId === "evt_sponsor"
+                ? "res_sponsor_3"
+                : "res_sponsor_funding_3",
           eventId,
           attendeeWallet: eventId === "evt_party" ? "wallet-party-3" : "wallet-sponsor-3",
           status: "RESERVED",

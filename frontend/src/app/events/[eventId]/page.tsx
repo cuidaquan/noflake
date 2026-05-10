@@ -29,6 +29,10 @@ export default async function EventPage({ params }: EventPageProps) {
         title={event.title}
         venue={event.venue}
         depositAmount={event.depositAmount}
+        settlementMode={event.settlementMode}
+        sponsorBonusPerAttendee={event.sponsorBonusPerAttendee}
+        partyBonusPerAttendee={event.partyBonusPerAttendee}
+        distributionStatus={event.distributionStatus}
       />
     </main>
   );

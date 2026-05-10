@@ -46,6 +46,8 @@ export type ReservationDetails = {
   createdAt: string;
   checkedInAt: string | null;
   waitlistOrder: number | null;
+  partyBonusClaimed?: boolean;
+  sponsorBonusClaimed?: boolean;
 };
 
 export type CancellationResult = {
@@ -252,6 +254,50 @@ export async function cancelEvent(eventId: string): Promise<EventDetails> {
 
   if (!response.ok) {
     throw new Error(`Failed to cancel event: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function claimPartyBonus(eventId: string, attendeeWallet: string) {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/claim-party-bonus`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ attendeeWallet })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to claim party bonus: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ reservation: ReservationDetails; event: EventDetails }>;
+}
+
+export async function claimSponsorBonus(eventId: string, attendeeWallet: string) {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/claim-sponsor-bonus`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ attendeeWallet })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to claim sponsor bonus: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ reservation: ReservationDetails; event: EventDetails }>;
+}
+
+export async function finalizeEvent(eventId: string): Promise<EventDetails> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/finalize`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to finalize event: ${response.status}`);
   }
 
   return response.json();

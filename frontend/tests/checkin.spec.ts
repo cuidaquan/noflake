@@ -31,3 +31,25 @@ test("organizer can undo check-in and cancel an event", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel Event" }).click();
   await expect(page.getByText("Event cancelled")).toBeVisible();
 });
+
+test("organizer funds sponsor pool and can only finalize after all sponsor attendees claim", async ({
+  page
+}) => {
+  await page.goto("/check-in/evt_sponsor_funding");
+  await expect(page.getByRole("button", { name: "Fund Sponsor Pool" })).toBeVisible();
+  await page.getByRole("button", { name: "Settle Event" }).click();
+  await page.getByRole("button", { name: "Prepare Sponsor Distribution" }).click();
+
+  await expect(page.getByRole("button", { name: "Finalize Event" })).toBeDisabled();
+
+  await page.goto("/events/evt_sponsor_funding");
+  await page.getByLabel("Demo wallet").selectOption("wallet-sponsor-1");
+  await page.getByRole("button", { name: "Claim Sponsor Bonus" }).click();
+  await page.getByLabel("Demo wallet").selectOption("wallet-sponsor-2");
+  await page.getByRole("button", { name: "Claim Sponsor Bonus" }).click();
+
+  await page.goto("/check-in/evt_sponsor_funding");
+  await expect(page.getByRole("button", { name: "Finalize Event" })).toBeEnabled();
+  await page.getByRole("button", { name: "Finalize Event" }).click();
+  await expect(page.getByText("Event finalized")).toBeVisible();
+});

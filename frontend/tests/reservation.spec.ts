@@ -16,3 +16,15 @@ test("attendee can cancel before cutoff", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel reservation" }).click();
   await expect(page.getByText("Reservation cancelled")).toBeVisible();
 });
+
+test("eligible party attendees can switch demo wallets and claim a prepared bonus", async ({ page }) => {
+  await page.goto("/check-in/evt_party");
+  await page.getByRole("button", { name: "Settle Event" }).click();
+  await page.getByRole("button", { name: "Prepare Party Distribution" }).click();
+
+  await page.goto("/events/evt_party");
+  await page.getByLabel("Demo wallet").selectOption("wallet-party-1");
+  await expect(page.getByText("Connected: wallet-party-1")).toBeVisible();
+  await page.getByRole("button", { name: "Claim Party Bonus" }).click();
+  await expect(page.getByText("Party bonus claimed")).toBeVisible();
+});
