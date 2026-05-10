@@ -36,6 +36,7 @@ test("attendee can inspect event details before reserving", async ({ page, reque
 
   await page.goto(`/events/${event.id}`);
   await expect(page.getByText("Settlement mode: STRICT")).toBeVisible();
+  await expect(page.getByText("Host wallet: host-wallet")).toBeVisible();
   await expect(page.getByText("Cutoff time: 2099-05-20T17:00:00.000Z")).toBeVisible();
   await expect(page.getByText("Event status: OPEN")).toBeVisible();
   await expect(page.getByText("Seat capacity: 20")).toBeVisible();

@@ -44,6 +44,7 @@ export default async function EventPage({ params }: EventPageProps) {
         <h1>{event.title}</h1>
         <p>{event.venue}</p>
         <p>Deposit: {event.depositAmount} USDC</p>
+        <p>Host wallet: {event.hostWallet}</p>
         <p>Settlement mode: {event.settlementMode}</p>
         <p>Cutoff time: {event.cutoffTime}</p>
         <p>Seat capacity: {event.seatCount}</p>
