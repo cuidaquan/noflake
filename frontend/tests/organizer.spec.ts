@@ -183,6 +183,39 @@ test("organizer sees event creation disabled when the browser wallet cannot sign
   ).toHaveCount(0);
 });
 
+test("organizer can switch to demo fallback and hide browser-wallet intent preview", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "host-browser-1"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "host-browser-1" } }),
+      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/organizer");
+  await expect(page.getByText(/^Host wallet intent:/)).toHaveCount(0);
+  await expect(page.getByLabel("Host demo wallet")).toBeVisible();
+  await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected host wallet: wallet-demo-1")).toBeVisible();
+  await expect(
+    page.getByText("Host wallet intent: Create event Untitled event with wallet-demo-1")
+  ).toHaveCount(0);
+  await page.getByLabel("Title").fill("Demo Host Dinner");
+  await page.getByLabel("Venue").fill("Shanghai");
+  await page.getByLabel("Deposit Amount").fill("20");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page.getByText(/^Host wallet: wallet-demo-1$/)).toBeVisible();
+});
+
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({
   page
 }) => {

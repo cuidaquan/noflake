@@ -50,13 +50,13 @@ export function ReservationCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [authorizationStatus, setAuthorizationStatus] = useState<string | null>(null);
   const walletIntent =
-    browserWalletAvailable && (walletAddress || !isDemoWallet)
+    browserWalletAvailable && !isDemoWallet && walletAddress
       ? prepareReservationWalletIntent({
           eventId,
-          walletAddress: walletAddress ?? "browser wallet",
+          walletAddress,
           createAuthorization: createWalletAuthorization
         })
-      : browserWalletAvailable
+      : browserWalletAvailable && !isDemoWallet
         ? prepareReservationWalletIntent({
             eventId,
             walletAddress: "browser wallet",
@@ -230,7 +230,7 @@ export function ReservationCard({
           WSL tests.
         </p>
       ) : null}
-      {isDemoWallet ? (
+      {(isDemoWallet || browserWalletAvailable) ? (
         <label className="field">
           <span>Demo wallet</span>
           <select

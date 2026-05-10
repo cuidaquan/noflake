@@ -41,7 +41,7 @@ export function EventForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hostAuthorizationStatus, setHostAuthorizationStatus] = useState<string | null>(null);
-  const walletIntent = browserWalletAvailable
+  const walletIntent = browserWalletAvailable && !isDemoWallet
     ? prepareCreateEventWalletIntent({
         hostWallet: walletAddress ?? "browser wallet",
         title: title || "Untitled event",
