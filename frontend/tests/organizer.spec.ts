@@ -169,6 +169,9 @@ test("organizer sees an authorization error when the browser wallet cannot sign 
   });
 
   await page.goto("/organizer");
+  await expect(
+    page.getByText("Connected browser wallet does not support message signing. Use demo flow or a compatible wallet.")
+  ).toBeVisible();
   await page.getByRole("button", { name: "Connect host wallet" }).click();
   await expect(page.getByText("Connected host wallet: host-browser-nosign")).toBeVisible();
   await page.getByLabel("Title").fill("Unsigned Host Dinner");

@@ -29,6 +29,10 @@ export function getConnectedWalletAddress(provider: SolanaProvider | null): stri
   return provider?.publicKey?.toBase58?.() ?? null;
 }
 
+export function supportsWalletMessageSigning(provider: SolanaProvider | null): boolean {
+  return typeof provider?.signMessage === "function";
+}
+
 function toBase64(bytes: Uint8Array) {
   let binary = "";
 

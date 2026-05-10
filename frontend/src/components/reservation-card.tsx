@@ -39,6 +39,7 @@ export function ReservationCard({
     walletAddress,
     isDemoWallet,
     browserWalletAvailable,
+    browserWalletCanSign,
     connectWallet,
     createWalletAuthorization,
     demoWallets,
@@ -214,6 +215,12 @@ export function ReservationCard({
       {!browserWalletAvailable ? (
         <p className="inline-meta">
           Browser wallet not detected. Using demo wallets for local flow.
+        </p>
+      ) : null}
+      {browserWalletAvailable && !browserWalletCanSign ? (
+        <p className="inline-meta">
+          Connected browser wallet does not support message signing. Use demo flow or a
+          compatible wallet.
         </p>
       ) : null}
       {isDemoWallet ? (

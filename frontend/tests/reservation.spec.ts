@@ -164,6 +164,9 @@ test("attendee sees an authorization error when the browser wallet cannot sign",
   });
 
   await page.goto("/events/evt_1");
+  await expect(
+    page.getByText("Connected browser wallet does not support message signing. Use demo flow or a compatible wallet.")
+  ).toBeVisible();
   await page.getByRole("button", { name: "Connect wallet" }).click();
   await expect(page.getByText("Connected: wallet-browser-nosign")).toBeVisible();
   await page.getByRole("button", { name: "Reserve with USDC" }).click();

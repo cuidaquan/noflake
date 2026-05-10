@@ -24,6 +24,7 @@ export function EventForm() {
     walletAddress,
     isDemoWallet,
     browserWalletAvailable,
+    browserWalletCanSign,
     demoWallets,
     selectDemoWallet,
     connectWallet,
@@ -126,6 +127,12 @@ export function EventForm() {
               ? "Browser wallet available"
               : "Demo backend host"}
         </p>
+        {browserWalletAvailable && !browserWalletCanSign ? (
+          <p className="inline-meta">
+            Connected browser wallet does not support message signing. Use demo flow or a
+            compatible wallet.
+          </p>
+        ) : null}
         <label className="field">
           <span>Host demo wallet</span>
           <select
