@@ -2400,6 +2400,59 @@ describe("noflake", () => {
     );
   });
 
+  it("does not allow claiming a sponsor bonus twice", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const checkedIn = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, checkedIn);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    await setupSponsorFunding({ sponsor, eventPda, amount: 600_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 600_000_000n });
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPrepareSponsorDistributionTransaction({
+      host,
+      eventPda,
+      sponsor,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    await claimSponsorBonus({ attendee: checkedIn, eventPda, reservationPda: checkedInReservation });
+
+    const secondClaimTransaction = await buildClaimSponsorBonusTransaction({
+      attendee: checkedIn,
+      eventPda,
+      reservationPda: checkedInReservation,
+    });
+
+    await expectAnchorError(
+      sendTransaction(secondClaimTransaction, checkedIn),
+      "SponsorBonusAlreadyClaimed"
+    );
+  });
+
   it("does not finalize a sponsor event before sponsor distribution is prepared", async () => {
     const host = anchor.web3.Keypair.generate();
     const sponsor = anchor.web3.Keypair.generate();
@@ -2431,6 +2484,70 @@ describe("noflake", () => {
 
     await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
     await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const finalizeTransaction = await program.methods
+      .finalizeEvent()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+      })
+      .transaction();
+
+    await expectAnchorError(
+      sendTransaction(finalizeTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("does not finalize a sponsor event before all eligible attendees claim", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const checkedInOne = anchor.web3.Keypair.generate();
+    const checkedInTwo = anchor.web3.Keypair.generate();
+    const noShow = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, checkedInOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, checkedInTwo);
+    const noShowReservation = await reserveSeat(eventPda, noShow);
+
+    await setupSponsorFunding({ sponsor, eventPda, amount: 1_000_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 1_000_000_000n });
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const prepareTransaction = await buildPrepareSponsorDistributionTransaction({
+      host,
+      eventPda,
+      sponsor,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    await claimSponsorBonus({
+      attendee: checkedInOne,
+      eventPda,
+      reservationPda: checkedInOneReservation,
+    });
 
     const finalizeTransaction = await program.methods
       .finalizeEvent()
