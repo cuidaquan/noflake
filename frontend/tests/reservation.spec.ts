@@ -45,6 +45,95 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await expect(page.getByText("Wallet authorization: Signed in browser wallet")).toBeVisible();
 });
 
+test("attendee sees browser-wallet signing progress before reservation submission completes", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    let releaseSignature: (() => void) | null = null;
+    let releaseReservationRequest: (() => void) | null = null;
+
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (url.includes("/reservations") && init?.method === "POST") {
+        await new Promise<void>((resolve) => {
+          releaseReservationRequest = resolve;
+        });
+      }
+
+      return originalFetch(input, init);
+    };
+
+    const provider = {
+      publicKey: {
+        toBase58: () => "wallet-browser-delayed"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-delayed" } }),
+      signMessage: async () => {
+        await new Promise<void>((resolve) => {
+          releaseSignature = resolve;
+        });
+        return new Uint8Array([115, 105, 103]);
+      }
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+
+    Object.defineProperty(window, "__noflakeWalletTest", {
+      configurable: true,
+      value: {
+        releaseSignature: () => releaseSignature?.(),
+        releaseReservationRequest: () => releaseReservationRequest?.()
+      }
+    });
+  });
+
+  await page.goto("/events/evt_1");
+  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await expect(page.getByText("Connected: wallet-browser-delayed")).toBeVisible();
+
+  const reserveClick = page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(
+    page.getByText("Authorization status: Awaiting browser wallet signature...")
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeWalletTest?: {
+          releaseSignature: () => void;
+          releaseReservationRequest: () => void;
+        };
+      }
+    ).__noflakeWalletTest?.releaseSignature();
+  });
+
+  await expect(page.getByText("Authorization status: Signed. Submitting reservation...")).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeWalletTest?: {
+          releaseSignature: () => void;
+          releaseReservationRequest: () => void;
+        };
+      }
+    ).__noflakeWalletTest?.releaseReservationRequest();
+  });
+
+  await reserveClick;
+  await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();
+});
+
 test("attendee sees an authorization error when the browser wallet cannot sign", async ({
   page
 }) => {

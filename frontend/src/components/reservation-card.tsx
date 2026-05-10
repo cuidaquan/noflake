@@ -44,6 +44,7 @@ export function ReservationCard({
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authorizationStatus, setAuthorizationStatus] = useState<string | null>(null);
   const checkInPass =
     reservation && walletAddress
       ? `/check-in/${eventId}?attendeeWallet=${encodeURIComponent(walletAddress)}`
@@ -72,8 +73,13 @@ export function ReservationCard({
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setAuthorizationStatus(null);
 
     try {
+      if (!isDemoWallet) {
+        setAuthorizationStatus("Awaiting browser wallet signature...");
+      }
+
       const walletAuthorization =
         !isDemoWallet && walletAddress
           ? await createWalletAuthorization(`reserve:${eventId}:${walletAddress}`)
@@ -81,6 +87,10 @@ export function ReservationCard({
 
       if (!isDemoWallet && !walletAuthorization) {
         throw new Error("Browser wallet authorization is required before reserving.");
+      }
+
+      if (!isDemoWallet) {
+        setAuthorizationStatus("Signed. Submitting reservation...");
       }
 
       const payload = await createReservation(
@@ -93,6 +103,7 @@ export function ReservationCard({
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Reservation failed");
     } finally {
+      setAuthorizationStatus(null);
       setIsSubmitting(false);
     }
   }
@@ -204,6 +215,9 @@ export function ReservationCard({
           {walletAddress ? `Connected: ${walletAddress}` : "Connect wallet to reserve your seat"}
         </p>
       </div>
+      {authorizationStatus ? (
+        <p className="inline-meta">Authorization status: {authorizationStatus}</p>
+      ) : null}
       <button
         className="primary-action"
         onClick={handleReserveSeat}
