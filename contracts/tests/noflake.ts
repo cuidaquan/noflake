@@ -731,6 +731,33 @@ describe("noflake", () => {
     await sendTransaction(transaction, sponsor);
   };
 
+  const buildPrepareSponsorDistributionTransaction = async ({
+    host,
+    eventPda,
+    sponsor,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    sponsor: anchor.web3.Keypair;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+
+    return program.methods
+      .prepareSponsorDistribution()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        sponsor: sponsor.publicKey,
+        sponsorVaultAuthority: sponsorConfig.sponsorVaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        sponsorVaultToken: sponsorConfig.sponsorVaultAta,
+        sponsorReturnToken: sponsorConfig.sponsorSourceAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
   const undoCheckIn = async ({
     host,
     eventPda,
@@ -1996,6 +2023,200 @@ describe("noflake", () => {
     expect(sponsorVaultBeforeRefund - sponsorVaultAfterRefund).to.equal(700_000_000n);
     expect(sponsorVaultAfterRefund).to.equal(0n);
     expect(eventVaultBalance).to.equal(0n);
+  });
+
+  it("settles sponsor mode deposits and leaves sponsor pool separate", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, attendeeOne);
+    const noShowReservation = await reserveSeat(eventPda, attendeeTwo);
+    const fundingConfig = getFundingConfig(eventPda);
+    await setupSponsorFunding({ sponsor, eventPda, amount: 800_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 800_000_000n });
+
+    const hostDepositAta = await createAta(host, fundingConfig.depositMint, host.publicKey);
+    const checkedInAta = getAttendeeDepositAta(eventPda, attendeeOne.publicKey);
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    const hostBalanceBeforeSettlement = await getTokenBalance(hostDepositAta);
+    const attendeeBalanceBeforeSettlement = await getTokenBalance(checkedInAta);
+    const sponsorVaultBeforeSettlement = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const checkedInAccount = await program.account.reservationAccount.fetch(checkedInReservation);
+    const noShowAccount = await program.account.reservationAccount.fetch(noShowReservation);
+    const hostBalanceAfterSettlement = await getTokenBalance(hostDepositAta);
+    const attendeeBalanceAfterSettlement = await getTokenBalance(checkedInAta);
+    const sponsorVaultAfterSettlement = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+
+    expect(enumVariant(checkedInAccount.status as Record<string, unknown>)).to.equal("refunded");
+    expect(enumVariant(noShowAccount.status as Record<string, unknown>)).to.equal("forfeited");
+    expect(hostBalanceAfterSettlement - hostBalanceBeforeSettlement).to.equal(500_000_000n);
+    expect(attendeeBalanceAfterSettlement - attendeeBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(sponsorVaultAfterSettlement).to.equal(sponsorVaultBeforeSettlement);
+  });
+
+  it("does not allow preparing sponsor distribution before all reservations are settled", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, attendeeOne);
+    await reserveSeat(eventPda, attendeeTwo);
+
+    await setupSponsorFunding({ sponsor, eventPda, amount: 800_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 800_000_000n });
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInReservation });
+
+    const prepareTransaction = await buildPrepareSponsorDistributionTransaction({
+      host,
+      eventPda,
+      sponsor,
+    });
+
+    await expectAnchorError(
+      sendTransaction(prepareTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("prepares sponsor distribution and returns the remainder to the sponsor", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+    const attendeeThree = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, attendeeOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, attendeeTwo);
+    const noShowReservation = await reserveSeat(eventPda, attendeeThree);
+
+    await setupSponsorFunding({ sponsor, eventPda, amount: 1_001_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 1_001_000_000n });
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+    const sponsorBalanceBeforePrepare = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+
+    const prepareTransaction = await buildPrepareSponsorDistributionTransaction({
+      host,
+      eventPda,
+      sponsor,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const sponsorBalanceAfterPrepare = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+    const sponsorVaultAfterPrepare = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+
+    expect(event.sponsorDistributionPrepared).to.equal(true);
+    expect(event.sponsorBonusPerAttendee.toString()).to.equal("500500000");
+    expect(event.sponsorBonusClaimedCount).to.equal(0);
+    expect(sponsorBalanceAfterPrepare - sponsorBalanceBeforePrepare).to.equal(0n);
+    expect(sponsorVaultAfterPrepare).to.equal(1_001_000_000n);
+  });
+
+  it("returns the full sponsor pool when nobody checked in", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+    await setupSponsorFunding({ sponsor, eventPda, amount: 700_000_000n });
+    await fundSponsorPool({ sponsor, eventPda, amount: 700_000_000n });
+
+    await settleReservation({ host, eventPda, reservationPda: reservation });
+
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+    const sponsorBalanceBeforePrepare = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+
+    const prepareTransaction = await buildPrepareSponsorDistributionTransaction({
+      host,
+      eventPda,
+      sponsor,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const sponsorBalanceAfterPrepare = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+    const sponsorVaultAfterPrepare = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+
+    expect(event.sponsorDistributionPrepared).to.equal(true);
+    expect(event.sponsorBonusPerAttendee.toString()).to.equal("0");
+    expect(sponsorBalanceAfterPrepare - sponsorBalanceBeforePrepare).to.equal(700_000_000n);
+    expect(sponsorVaultAfterPrepare).to.equal(0n);
   });
 
   it("rejects settling a waitlisted reservation", async () => {
