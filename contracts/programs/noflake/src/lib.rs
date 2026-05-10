@@ -329,6 +329,23 @@ pub mod noflake {
                     )?;
                     ReservationStatus::Refunded
                 }
+                SettlementMode::Party | SettlementMode::Sponsor if event_cancelled => {
+                    transfer_checked(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(),
+                            TransferChecked {
+                                from: ctx.accounts.event_vault_token.to_account_info(),
+                                mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                                to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                                authority: ctx.accounts.vault_authority.to_account_info(),
+                            },
+                            vault_signer_seeds,
+                        ),
+                        reservation.paid_amount,
+                        ctx.accounts.deposit_mint_account.decimals,
+                    )?;
+                    ReservationStatus::Refunded
+                }
                 SettlementMode::Strict => {
                     transfer_checked(
                         CpiContext::new_with_signer(

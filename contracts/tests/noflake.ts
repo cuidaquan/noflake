@@ -985,6 +985,50 @@ describe("noflake", () => {
     expect(vaultBalanceAfterSettlement).to.equal(0n);
   });
 
+  it("refunds reserved reservations in party mode after event cancellation", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: partyMode,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+    const fundingConfig = getFundingConfig(eventPda);
+    const attendeeAta = getAttendeeDepositAta(eventPda, attendee.publicKey);
+
+    await cancelEvent({
+      host,
+      eventPda,
+    });
+
+    const attendeeBalanceBeforeSettlement = await getTokenBalance(attendeeAta);
+    const vaultBalanceBeforeSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: reservation,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const reservationAccount = await program.account.reservationAccount.fetch(reservation);
+    const attendeeBalanceAfterSettlement = await getTokenBalance(attendeeAta);
+    const vaultBalanceAfterSettlement = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("cancelled");
+    expect(enumVariant(reservationAccount.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(attendeeBalanceAfterSettlement - attendeeBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(vaultBalanceBeforeSettlement - vaultBalanceAfterSettlement).to.equal(500_000_000n);
+    expect(vaultBalanceAfterSettlement).to.equal(0n);
+  });
+
   it("settles checked-in and no-show reservations in strict mode", async () => {
     const host = anchor.web3.Keypair.generate();
     const attendeeOne = anchor.web3.Keypair.generate();
