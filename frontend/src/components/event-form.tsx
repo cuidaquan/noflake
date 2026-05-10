@@ -14,7 +14,7 @@ type CreatedEvent = {
 };
 
 export function EventForm() {
-  const { walletAddress } = useWallet();
+  const { walletAddress, demoWallets, selectDemoWallet, connectWallet } = useWallet();
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
   const [depositAmount, setDepositAmount] = useState("20");
@@ -56,6 +56,24 @@ export function EventForm() {
     <div className="flow-grid">
       <form className="panel" onSubmit={handleSubmit}>
         <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
+        <label className="field">
+          <span>Host demo wallet</span>
+          <select
+            aria-label="Host demo wallet"
+            value={walletAddress ?? ""}
+            onChange={(event) => selectDemoWallet(event.target.value)}
+          >
+            <option value="">Use demo-host-wallet fallback</option>
+            {demoWallets.map((demoWallet) => (
+              <option key={demoWallet} value={demoWallet}>
+                {demoWallet}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="secondary-action" type="button" onClick={() => void connectWallet()}>
+          Connect host wallet
+        </button>
 
         <label className="field">
           <span>Title</span>
