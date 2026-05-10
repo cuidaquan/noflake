@@ -1,6 +1,8 @@
 import { ReservationCard } from "../../../components/reservation-card";
 import { getReservations } from "../../../lib/api";
 
+const API_BASE_URL = process.env.NOAFLAKE_API_BASE_URL ?? "http://127.0.0.1:4000";
+
 type EventPageProps = {
   params: Promise<{
     eventId: string;
@@ -8,7 +10,7 @@ type EventPageProps = {
 };
 
 async function getEvent(eventId: string) {
-  const response = await fetch(`http://127.0.0.1:4000/events/${eventId}`, {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}`, {
     cache: "no-store"
   });
 

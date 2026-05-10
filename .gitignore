@@ -38,3 +38,5 @@ target/
 tmp/
 temp/
 .worktrees/
+.playwright-store/
+backend/data/

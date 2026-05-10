@@ -5,16 +5,18 @@ import { createReservationService } from "./services/reservation-service";
 import { createSettlementService } from "./services/settlement-service";
 import { createSystemTicker } from "./system-tick";
 import type { InMemoryStore } from "./store/in-memory-store";
-import { createInMemoryStore } from "./store/in-memory-store";
+import { createInMemoryStore, resetInMemoryStore } from "./store/in-memory-store";
 
 type BuildServerOptions = {
   store?: InMemoryStore;
   onStoreChange?: (store: InMemoryStore) => void;
+  allowTestReset?: boolean;
 };
 
 export function buildServer(options: BuildServerOptions = {}) {
   const app = express();
   const store = options.store ?? createInMemoryStore();
+  const allowTestReset = options.allowTestReset ?? process.env.NOAFLAKE_ALLOW_TEST_RESET === "true";
   const eventService = createEventService(store);
   const reservationService = createReservationService(store);
   const settlementService = createSettlementService();
@@ -26,7 +28,14 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   app.use(
     cors({
-      origin: ["http://127.0.0.1:3000", "http://localhost:3000"]
+      origin: [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3001",
+        "http://localhost:3001",
+        "http://127.0.0.1:3101",
+        "http://localhost:3101"
+      ]
     })
   );
   app.use(express.json());
@@ -35,6 +44,17 @@ export function buildServer(options: BuildServerOptions = {}) {
     const updatedEvents = ticker.tick();
     res.status(200).json({ updatedEvents });
   });
+
+  if (allowTestReset) {
+    app.post("/system/reset", (_req, res) => {
+      const resetStore = resetInMemoryStore();
+      persistStore();
+      res.status(200).json({
+        events: resetStore.events.length,
+        reservations: resetStore.reservations.length
+      });
+    });
+  }
 
   app.post("/events", (req, res) => {
     const event = eventService.createEvent(req.body);

@@ -11,6 +11,11 @@ export default function OrganizerPage() {
           settle attendance cleanly.
         </p>
         <section className="panel">
+          <p className="eyebrow">COMMERCIAL MODEL</p>
+          <p>Pricing: 9 USDC / event</p>
+          <p>Sponsor campaigns can be scoped separately later.</p>
+        </section>
+        <section className="panel">
           <p className="eyebrow">CHECK-IN FLOW</p>
           <p>Generate a share link, display the QR code at the door, and use the check-in console on-site.</p>
         </section>

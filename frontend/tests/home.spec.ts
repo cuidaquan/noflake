@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-helpers";
 
 test("homepage shows NoFlake value proposition", async ({ page }) => {
   await page.goto("/");

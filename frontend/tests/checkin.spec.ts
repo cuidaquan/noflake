@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-helpers";
 
 test("organizer can check in attendee and settle event", async ({ page }) => {
   await page.goto("/check-in/evt_cancel");

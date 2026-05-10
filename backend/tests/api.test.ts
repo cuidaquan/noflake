@@ -58,6 +58,48 @@ describe("backend api", () => {
     }
   });
 
+  it("resets the backend store through a test-only endpoint when enabled", async () => {
+    const previousValue = process.env.NOAFLAKE_ALLOW_TEST_RESET;
+    process.env.NOAFLAKE_ALLOW_TEST_RESET = "true";
+
+    try {
+      const app = buildServer();
+
+      const createResponse = await request(app).post("/events").send({
+        title: "Dinner",
+        hostWallet: "host",
+        venue: "Shanghai",
+        startTime: "2026-05-20T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2026-05-20T17:00:00.000Z",
+        settlementMode: "STRICT"
+      });
+
+      const resetResponse = await request(app).post("/system/reset");
+      expect(resetResponse.status).toBe(200);
+
+      const eventResponse = await request(app).get(`/events/${createResponse.body.id}`);
+      expect(eventResponse.status).toBe(200);
+      expect(eventResponse.body.title).not.toBe(createResponse.body.title);
+    } finally {
+      process.env.NOAFLAKE_ALLOW_TEST_RESET = previousValue;
+    }
+  });
+
+  it("does not expose the backend reset endpoint unless explicitly enabled", async () => {
+    const previousValue = process.env.NOAFLAKE_ALLOW_TEST_RESET;
+    delete process.env.NOAFLAKE_ALLOW_TEST_RESET;
+
+    try {
+      const app = buildServer();
+      const resetResponse = await request(app).post("/system/reset");
+      expect(resetResponse.status).toBe(404);
+    } finally {
+      process.env.NOAFLAKE_ALLOW_TEST_RESET = previousValue;
+    }
+  });
+
   it("returns organizer dashboard counts and share metadata", async () => {
     const app = buildServer();
 

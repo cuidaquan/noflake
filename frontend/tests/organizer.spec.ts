@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-helpers";
 
 test("organizer can create an event", async ({ page }) => {
   await page.goto("/organizer");
@@ -31,6 +31,12 @@ test("organizer sees sponsor funding guidance for sponsor mode", async ({ page }
   await expect(
     page.getByText("Sponsor funds the bonus pool after event creation in a separate step.")
   ).toBeVisible();
+});
+
+test("organizer sees the per-event pricing note", async ({ page }) => {
+  await page.goto("/organizer");
+  await expect(page.getByText("Pricing: 9 USDC / event")).toBeVisible();
+  await expect(page.getByText("Sponsor campaigns can be scoped separately later.")).toBeVisible();
 });
 
 test("organizer sees a QR payload and check-in guidance after creating an event", async ({ page }) => {

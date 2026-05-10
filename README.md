@@ -23,6 +23,7 @@ MVP focus:
 - organizer event cancellation
 - sponsor-mode single-sponsor post-creation funding and attendee bonus flow
 - end-of-event staged settlement, prepare, and claim orchestration
+- a minimal commercialization story with `9 USDC / event` positioning
 
 Out of scope for MVP:
 
@@ -60,6 +61,14 @@ The demo boundary is intentional:
 
 - the web app still uses backend orchestration plus a mock wallet UX for speed of demoing
 - the Anchor package already verifies the real onchain funding, refund, forfeiture, and bonus-claim lifecycle on localnet
+
+## Commercialization
+
+Current MVP positioning keeps monetization simple:
+
+- `9 USDC / event` as the baseline organizer fee
+- sponsor campaigns as a later expansion path rather than a required core workflow
+- no platform incentive tied to attendee no-show forfeitures
 
 ## Contract Status
 
@@ -155,6 +164,8 @@ Frontend E2E:
 cd frontend
 npm run test:e2e
 ```
+
+Playwright runs against isolated test servers on `3101/4101`, resets backend state between tests, and uses a single worker so demo event fixtures do not cross-contaminate.
 
 Contracts scaffold:
 
