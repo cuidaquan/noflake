@@ -78,6 +78,11 @@ export function ReservationCard({
         !isDemoWallet && walletAddress
           ? await createWalletAuthorization(`reserve:${eventId}:${walletAddress}`)
           : undefined;
+
+      if (!isDemoWallet && !walletAuthorization) {
+        throw new Error("Browser wallet authorization is required before reserving.");
+      }
+
       const payload = await createReservation(
         eventId,
         walletAddress,

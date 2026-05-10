@@ -87,11 +87,21 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
 
   app.post("/events/:eventId/reservations", (req, res) => {
+    const paymentPath =
+      req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const walletAuthorization =
+      typeof req.body.walletAuthorization === "string" ? req.body.walletAuthorization : undefined;
+
+    if (paymentPath === "BROWSER_WALLET" && !walletAuthorization) {
+      res.status(400).json({ message: "Wallet authorization is required for browser wallet reservations" });
+      return;
+    }
+
     const reservation = reservationService.reserveSeat(
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet",
-      req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND",
-      typeof req.body.walletAuthorization === "string" ? req.body.walletAuthorization : undefined
+      paymentPath,
+      walletAuthorization
     );
     persistStore();
 

@@ -14,6 +14,9 @@ test("organizer can apply a scanned check-in payload and check in the matching a
   await page.getByLabel("Demo wallet").selectOption("wallet-undo-1");
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
   await expect(page.getByText(/Check-in pass:/)).toBeVisible();
+  await expect(page.getByTestId("checkin-pass-payload")).toHaveText(
+    /\/check-in\/evt_cancel\?attendeeWallet=wallet-undo-1/
+  );
   const payload = await page.getByTestId("checkin-pass-payload").textContent();
 
   await page.goto("/check-in/evt_cancel");

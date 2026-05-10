@@ -45,6 +45,32 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await expect(page.getByText("Wallet authorization: Signed in browser wallet")).toBeVisible();
 });
 
+test("attendee sees an authorization error when the browser wallet cannot sign", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "wallet-browser-nosign"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-nosign" } })
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/events/evt_1");
+  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await expect(page.getByText("Connected: wallet-browser-nosign")).toBeVisible();
+  await page.getByRole("button", { name: "Reserve with USDC" }).click();
+  await expect(
+    page.getByText("Browser wallet authorization is required before reserving.")
+  ).toBeVisible();
+});
+
 test("attendee can inspect event details before reserving", async ({ page, request }) => {
   const createResponse = await request.post("http://127.0.0.1:4101/events", {
     data: {

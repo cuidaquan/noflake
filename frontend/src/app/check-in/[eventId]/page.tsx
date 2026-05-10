@@ -136,6 +136,10 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     setActionError(null);
 
     try {
+      if (!scanPayload.trim()) {
+        throw new Error("Scanned payload is empty");
+      }
+
       const parsed = new URL(scanPayload, window.location.origin);
       const match = parsed.pathname.match(/^\/check-in\/([^/]+)$/);
       const payloadEventId = match?.[1];
