@@ -10,6 +10,12 @@ export default function HomePage() {
           settle attendance transparently on Solana.
         </p>
         <p className="inline-meta">Browser wallets connect directly when available.</p>
+        <p className="inline-meta">
+          Current wallet status: browser-wallet transaction preparation with explicit demo fallback.
+        </p>
+        <p className="inline-meta">
+          Real devnet payments need RPC, program ID, wallet funds, and a devnet deposit mint setup.
+        </p>
         <section className="panel">
           <p className="eyebrow">COMMERCIAL MODEL</p>
           <p>Pricing: 9 USDC / event</p>

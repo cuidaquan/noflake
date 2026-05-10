@@ -380,6 +380,12 @@ test("organizer sees the per-event pricing note", async ({ page }) => {
   await page.goto("/organizer");
   await expect(page.getByText("Pricing: 9 USDC / event")).toBeVisible();
   await expect(page.getByText("Sponsor campaigns can be scoped separately later.")).toBeVisible();
+  await expect(
+    page.getByText("Real devnet mode needs RPC, program ID, funded wallets, and a deposit-mint configuration.")
+  ).toBeVisible();
+  await expect(
+    page.getByText("Setup guide: docs/devnet-wallet-payment-setup.md")
+  ).toBeVisible();
 });
 
 test("organizer sees a QR payload and check-in guidance after creating an event", async ({ page }) => {

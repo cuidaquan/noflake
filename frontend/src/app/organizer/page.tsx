@@ -13,6 +13,10 @@ export default function OrganizerPage() {
         <p className="inline-meta">
           Attendees can connect a browser wallet or use the local demo fallback.
         </p>
+        <p className="inline-meta">
+          Real devnet mode needs RPC, program ID, funded wallets, and a deposit-mint configuration.
+        </p>
+        <p className="inline-meta">Setup guide: docs/devnet-wallet-payment-setup.md</p>
         <section className="panel">
           <p className="eyebrow">COMMERCIAL MODEL</p>
           <p>Pricing: 9 USDC / event</p>

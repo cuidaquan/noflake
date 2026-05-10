@@ -464,6 +464,12 @@ test("homepage explains the pricing and sponsor campaign path", async ({ page })
   await page.goto("/");
   await expect(page.getByText("Pricing: 9 USDC / event")).toBeVisible();
   await expect(page.getByText("Sponsor campaigns are a later expansion path.")).toBeVisible();
+  await expect(
+    page.getByText("Current wallet status: browser-wallet transaction preparation with explicit demo fallback.")
+  ).toBeVisible();
+  await expect(
+    page.getByText("Real devnet payments need RPC, program ID, wallet funds, and a devnet deposit mint setup.")
+  ).toBeVisible();
 });
 
 test("attendee can cancel before cutoff", async ({ page }) => {

@@ -61,9 +61,18 @@ Out of scope for MVP:
 The demo boundary is intentional:
 
 - the web app now prefers browser wallet addresses, but organizer and attendee flows can explicitly move between browser-wallet and demo fallback modes before submission
-- reservation/payment execution still uses backend orchestration plus demo fallback semantics even when browser-wallet authorization is captured in the UI
+- organizer and attendee browser-wallet flows now prepare transactions, request signatures, echo transaction signatures, and then sync the result back into the backend projection layer
+- reservation/payment execution still uses backend orchestration plus demo fallback semantics for final source-of-truth writes unless the browser-wallet flow has already produced transaction provenance
 - the Anchor package already verifies the real onchain funding, refund, forfeiture, and bonus-claim lifecycle on localnet
 - the remaining wallet/payment gap is direct frontend signature flow and devnet USDC execution, not basic wallet awareness
+
+Current environment boundary:
+
+- `Demo fallback`: local walkthrough mode for organizer and attendee flows without requiring a funded Solana wallet
+- `Browser-wallet transaction preparation`: current frontend/browser-wallet path that signs intent messages, prepares transactions, captures signature provenance, and syncs to the backend
+- `Real devnet execution`: next-step environment that requires a real RPC endpoint, the deployed program ID, IDL alignment, funded wallets, and a devnet deposit mint / token flow
+
+For the exact devnet prerequisites, see [docs/devnet-wallet-payment-setup.md](./docs/devnet-wallet-payment-setup.md).
 
 ## Commercialization
 
@@ -191,7 +200,8 @@ Frontend wallet state today:
 - attendee and organizer flows can explicitly switch from browser-wallet mode into demo fallback and back again without reloading the page
 - attendee UI shows whether the current path is browser-wallet-connected or demo-backend reservation
 - organizer success, event detail, and check-in surfaces echo wallet provenance and host/payment path labels
-- direct frontend transaction signing is still pending as a later slice
+- organizer and attendee browser-wallet flows now surface transaction preparation state and signature provenance before backend sync
+- real devnet settlement still needs environment setup rather than more wallet UI work
 
 ## Solana / Anchor Local Development
 
