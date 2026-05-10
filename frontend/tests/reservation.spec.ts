@@ -11,11 +11,66 @@ test("attendee can reserve a seat", async ({ page }) => {
   await expect(page.getByText(/\/check-in\/evt_1\?attendeeWallet=wallet-demo-1/)).toBeVisible();
 });
 
-test("attendee can inspect event details before reserving", async ({ page }) => {
-  await page.goto("/events/evt_1");
+test("attendee can inspect event details before reserving", async ({ page, request }) => {
+  const createResponse = await request.post("http://127.0.0.1:4101/events", {
+    data: {
+      title: "Details Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    }
+  });
+  const event = await createResponse.json();
+
+  await page.goto(`/events/${event.id}`);
   await expect(page.getByText("Settlement mode: STRICT")).toBeVisible();
-  await expect(page.getByText("Cutoff time: 2026-05-20T17:00:00.000Z")).toBeVisible();
+  await expect(page.getByText("Cutoff time: 2099-05-20T17:00:00.000Z")).toBeVisible();
   await expect(page.getByText("Event status: OPEN")).toBeVisible();
+  await expect(page.getByText("Seat capacity: 20")).toBeVisible();
+  await expect(page.getByText("Seats taken: 0 / 20")).toBeVisible();
+  await expect(page.getByText("Remaining seats: 20")).toBeVisible();
+  await expect(
+    page.getByText("Waitlist rule: New reservations join the waitlist after all seats are taken.")
+  ).toBeVisible();
+  await expect(page.getByText("Refund rule: Cancel before cutoff for a full refund.")).toBeVisible();
+  await expect(page.getByText("Check-in rule: Organizer confirms attendance at the door.")).toBeVisible();
+});
+
+test("event detail page shows full capacity and active waitlist pressure", async ({
+  page,
+  request
+}) => {
+  const createResponse = await request.post("http://127.0.0.1:4101/events", {
+    data: {
+      title: "Waitlist Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    }
+  });
+  const event = await createResponse.json();
+
+  for (const attendeeWallet of ["wallet-1", "wallet-2", "wallet-3"]) {
+    await request.post(`http://127.0.0.1:4101/events/${event.id}/reservations`, {
+      data: { attendeeWallet }
+    });
+  }
+
+  await page.goto(`/events/${event.id}`);
+  await expect(page.getByText("Event status: FULL")).toBeVisible();
+  await expect(page.getByText("Seat capacity: 2")).toBeVisible();
+  await expect(page.getByText("Seats taken: 2 / 2")).toBeVisible();
+  await expect(page.getByText("Remaining seats: 0")).toBeVisible();
+  await expect(page.getByText("Waitlisted seats: 1")).toBeVisible();
+  await expect(page.getByText("Waitlist is active for this event.")).toBeVisible();
 });
 
 test("homepage explains the pricing and sponsor campaign path", async ({ page }) => {
@@ -38,6 +93,8 @@ test("eligible party attendees can switch demo wallets and claim a prepared bonu
   await page.getByRole("button", { name: "Prepare Party Distribution" }).click();
 
   await page.goto("/events/evt_party");
+  await expect(page.getByText("Settlement progress: CLAIM_IN_PROGRESS")).toBeVisible();
+  await expect(page.getByText("Party bonus per attendee: 10 USDC")).toBeVisible();
   await page.getByLabel("Demo wallet").selectOption("wallet-party-1");
   await expect(page.getByText("Connected: wallet-party-1")).toBeVisible();
   await page.getByRole("button", { name: "Claim Party Bonus" }).click();

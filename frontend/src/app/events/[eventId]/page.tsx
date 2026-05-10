@@ -25,18 +25,47 @@ async function getEvent(eventId: string) {
 export default async function EventPage({ params }: EventPageProps) {
   const { eventId } = await params;
   const [event, reservations] = await Promise.all([getEvent(eventId), getReservations(eventId)]);
+  const takenSeats = reservations.filter(
+    (reservation) => reservation.status === "RESERVED" || reservation.status === "CHECKED_IN"
+  ).length;
+  const waitlistedSeats = reservations.filter((reservation) => reservation.status === "WAITLISTED").length;
+  const checkedInSeats = reservations.filter((reservation) => reservation.status === "CHECKED_IN").length;
+  const remainingSeats = Math.max(event.seatCount - takenSeats, 0);
+
+  const settlementProgress =
+    event.status === "SETTLED"
+      ? "COMPLETED"
+      : event.distributionStatus ?? (event.status === "SETTLING" ? "PENDING" : "NOT_STARTED");
 
   return (
     <main className="page-shell">
       <section className="panel">
         <p className="eyebrow">EVENT DETAILS</p>
         <h1>{event.title}</h1>
+        <p>{event.venue}</p>
+        <p>Deposit: {event.depositAmount} USDC</p>
         <p>Settlement mode: {event.settlementMode}</p>
         <p>Cutoff time: {event.cutoffTime}</p>
+        <p>Seat capacity: {event.seatCount}</p>
+        <p>Seats taken: {takenSeats} / {event.seatCount}</p>
+        <p>Remaining seats: {remainingSeats}</p>
         <p>Reserved seats: {reservations.filter((reservation) => reservation.status === "RESERVED").length}</p>
-        <p>Waitlisted seats: {reservations.filter((reservation) => reservation.status === "WAITLISTED").length}</p>
-        <p>Checked in: {reservations.filter((reservation) => reservation.status === "CHECKED_IN").length}</p>
+        <p>Waitlisted seats: {waitlistedSeats}</p>
+        <p>Checked in: {checkedInSeats}</p>
         <p>Event status: {event.status}</p>
+        <p>Settlement progress: {settlementProgress}</p>
+        {event.partyBonusPerAttendee !== undefined ? (
+          <p>Party bonus per attendee: {event.partyBonusPerAttendee} USDC</p>
+        ) : null}
+        {event.sponsorBonusPerAttendee !== undefined ? (
+          <p>Sponsor bonus per attendee: {event.sponsorBonusPerAttendee} USDC</p>
+        ) : null}
+        <p className="inline-meta">Refund rule: Cancel before cutoff for a full refund.</p>
+        <p className="inline-meta">
+          Waitlist rule: New reservations join the waitlist after all seats are taken.
+        </p>
+        <p className="inline-meta">Check-in rule: Organizer confirms attendance at the door.</p>
+        {waitlistedSeats > 0 ? <p className="inline-meta">Waitlist is active for this event.</p> : null}
       </section>
       <ReservationCard
         eventId={event.id}

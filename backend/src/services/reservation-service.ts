@@ -1,6 +1,26 @@
 import type { InMemoryStore, ReservationRecord } from "../store/in-memory-store";
 
 export function createReservationService(store: InMemoryStore) {
+  function refreshEventStatus(eventId: string) {
+    const event = store.events.find((candidate) => candidate.id === eventId);
+
+    if (!event || event.status === "CANCELLED" || event.status === "SETTLING" || event.status === "SETTLED") {
+      return;
+    }
+
+    const eventReservations = getEventReservations(eventId);
+    const takenSeats = eventReservations.filter(
+      (reservation) => reservation.status === "RESERVED" || reservation.status === "CHECKED_IN"
+    ).length;
+
+    if (takenSeats >= event.seatCount) {
+      event.status = "FULL";
+      return;
+    }
+
+    event.status = "OPEN";
+  }
+
   function createDemoEvent(eventId: string) {
     if (eventId === "evt_1") {
       return {
@@ -291,6 +311,7 @@ export function createReservationService(store: InMemoryStore) {
       };
 
       store.reservations.push(reservation);
+      refreshEventStatus(eventId);
       return reservation;
     },
 
@@ -348,6 +369,8 @@ export function createReservationService(store: InMemoryStore) {
         }
       }
 
+      refreshEventStatus(eventId);
+
       return {
         cancelled: reservation,
         promoted
@@ -365,6 +388,7 @@ export function createReservationService(store: InMemoryStore) {
 
       reservation.status = "CHECKED_IN";
       reservation.checkedInAt = new Date().toISOString();
+      refreshEventStatus(eventId);
       return reservation;
     },
 
@@ -383,6 +407,7 @@ export function createReservationService(store: InMemoryStore) {
 
       reservation.status = "RESERVED";
       reservation.checkedInAt = null;
+      refreshEventStatus(eventId);
       return reservation;
     }
   };

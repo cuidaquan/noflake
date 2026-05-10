@@ -37,6 +37,7 @@ describe("reservation service", () => {
 
     expect(first.status).toBe("RESERVED");
     expect(second.status).toBe("WAITLISTED");
+    expect(eventService.getEventById(event.id)?.status).toBe("FULL");
   });
 
   it("cancels a reserved seat before cutoff and promotes the earliest waitlisted attendee", () => {
