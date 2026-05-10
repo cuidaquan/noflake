@@ -198,6 +198,22 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           Check attendees in at the door, settle deposits first, then prepare any Party or Sponsor
           bonus distribution before the event is fully done.
         </p>
+        {event ? (
+          <section className="panel">
+            <p className="eyebrow">HOST PROVENANCE</p>
+            <p>Host wallet: {event.hostWallet}</p>
+            <p>
+              Host wallet path:{" "}
+              {event.creationPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend host"}
+            </p>
+            {event.hostWalletAuthorization ? (
+              <p>Host authorization: Signed in browser wallet</p>
+            ) : null}
+            {event.hostAuthorizationMessage ? (
+              <p>Host authorization payload: {event.hostAuthorizationMessage}</p>
+            ) : null}
+          </section>
+        ) : null}
 
         {event?.settlementMode === "SPONSOR" && event.status === "OPEN" ? (
           <section className="panel">

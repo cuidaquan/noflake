@@ -61,6 +61,12 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
   });
 
   await page.goto(`/check-in/${event.id}`);
+  await expect(page.getByText("Host wallet: host-browser-1")).toBeVisible();
+  await expect(page.getByText("Host wallet path: Browser wallet")).toBeVisible();
+  await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+  await expect(
+    page.getByText("Host authorization payload: create-event:host-browser-1:Wallet Provenance Dinner")
+  ).toBeVisible();
   await expect(page.getByText("Payment path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Wallet authorization: Present")).toBeVisible();
   await expect(
