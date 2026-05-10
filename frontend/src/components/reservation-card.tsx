@@ -128,13 +128,13 @@ export function ReservationCard({
 
       const transactionSignature =
         !isDemoWallet && walletAddress
-          ? await createWalletTransactionSignature(
+          ? (await createWalletTransactionSignature(
               buildReservationTransactionMarker({
                 eventId,
                 attendeeWallet: walletAddress,
                 depositAmount
               })
-            )
+            )) ?? undefined
           : undefined;
 
       if (!isDemoWallet) {

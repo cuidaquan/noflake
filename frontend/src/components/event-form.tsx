@@ -92,14 +92,14 @@ export function EventForm() {
 
       const transactionSignature =
         !isDemoWallet && walletAddress
-          ? await createWalletTransactionSignature(
+          ? (await createWalletTransactionSignature(
               buildCreateEventTransactionMarker({
                 hostWallet: walletAddress,
                 title,
                 depositAmount: Number(depositAmount),
                 seatCount: Number(seatCount)
               })
-            )
+            )) ?? undefined
           : undefined;
 
       if (!isDemoWallet) {
