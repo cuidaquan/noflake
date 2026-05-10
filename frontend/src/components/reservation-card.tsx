@@ -2,10 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  buildReservationAuthorizationMessage,
-  RESERVATION_SUBMISSION_STATUS
-} from "../../../shared/src/constants";
-import {
   cancelReservation as cancelReservationRequest,
   claimPartyBonus,
   claimSponsorBonus,
@@ -13,6 +9,7 @@ import {
   reserveSeat as createReservation,
   type ReservationDetails
 } from "../lib/api";
+import { prepareReservationWalletIntent } from "../lib/wallet-intent";
 import { useWallet } from "./wallet-provider";
 
 type ReservationCardProps = {
@@ -80,23 +77,28 @@ export function ReservationCard({
     setAuthorizationStatus(null);
 
     try {
+      const walletIntent =
+        !isDemoWallet && walletAddress
+          ? prepareReservationWalletIntent({
+              eventId,
+              walletAddress,
+              createAuthorization: createWalletAuthorization
+            })
+          : null;
+
       if (!isDemoWallet) {
-        setAuthorizationStatus(RESERVATION_SUBMISSION_STATUS.awaitingSignature);
+        setAuthorizationStatus(walletIntent?.awaitingSignatureStatus ?? null);
       }
 
       const walletAuthorization =
-        !isDemoWallet && walletAddress
-          ? await createWalletAuthorization(
-              buildReservationAuthorizationMessage(eventId, walletAddress)
-            )
-          : undefined;
+        walletIntent ? await walletIntent.sign() : undefined;
 
       if (!isDemoWallet && !walletAuthorization) {
         throw new Error("Browser wallet authorization is required before reserving.");
       }
 
       if (!isDemoWallet) {
-        setAuthorizationStatus(RESERVATION_SUBMISSION_STATUS.submitting);
+        setAuthorizationStatus(walletIntent?.submittingStatus ?? null);
       }
 
       const payload = await createReservation(
