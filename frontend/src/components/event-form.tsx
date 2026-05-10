@@ -74,7 +74,7 @@ export function EventForm() {
         title,
         hostWallet: walletAddress ?? "demo-host-wallet",
         creationPath: isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
-        hostWalletAuthorization,
+        hostWalletAuthorization: hostWalletAuthorization ?? undefined,
         venue,
         startTime: "2026-05-20T19:00:00.000Z",
         depositAmount: Number(depositAmount),

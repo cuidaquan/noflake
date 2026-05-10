@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { formatPaymentPathLabel } from "../../../../../shared/src/constants";
 import {
   cancelEvent,
   checkInAttendee,
@@ -226,10 +227,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
                 <strong>{reservation.attendeeWallet}</strong>
                 <p className="inline-meta">Status: {reservation.status}</p>
                 <p className="inline-meta">
-                  Payment path:{" "}
-                  {reservation.paymentPath === "BROWSER_WALLET"
-                    ? "Browser wallet"
-                    : "Demo backend reservation"}
+                  Payment path: {formatPaymentPathLabel(reservation.paymentPath)}
                 </p>
                 {reservation.walletAuthorization ? (
                   <p className="inline-meta">Wallet authorization: Present</p>

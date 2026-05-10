@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatPaymentPathLabel } from "../../../shared/src/constants";
 import {
   cancelReservation as cancelReservationRequest,
   claimPartyBonus,
@@ -267,9 +268,7 @@ export function ReservationCard({
           </p>
           <p className="inline-meta">
             Reservation path:{" "}
-            {reservation.paymentPath === "BROWSER_WALLET"
-              ? "Browser wallet"
-              : "Demo backend reservation"}
+            {formatPaymentPathLabel(reservation.paymentPath)}
           </p>
           {reservation.walletAuthorization ? (
             <p className="inline-meta">Wallet authorization: Signed in browser wallet</p>

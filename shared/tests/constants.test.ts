@@ -3,6 +3,7 @@ import {
   buildCreateEventAuthorizationMessage,
   buildReservationAuthorizationMessage,
   HOST_EVENT_SUBMISSION_STATUS,
+  formatPaymentPathLabel,
   RESERVATION_SUBMISSION_STATUS
 } from "../src/constants";
 
@@ -23,5 +24,11 @@ describe("shared constants", () => {
       "Awaiting browser wallet signature..."
     );
     expect(HOST_EVENT_SUBMISSION_STATUS.submitting).toBe("Signed. Submitting event...");
+  });
+
+  it("formats payment path labels consistently", () => {
+    expect(formatPaymentPathLabel("BROWSER_WALLET")).toBe("Browser wallet");
+    expect(formatPaymentPathLabel("DEMO_BACKEND")).toBe("Demo backend reservation");
+    expect(formatPaymentPathLabel(undefined)).toBe("Demo backend reservation");
   });
 });

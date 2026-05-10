@@ -18,3 +18,7 @@ export function buildReservationAuthorizationMessage(eventId: string, walletAddr
 export function buildCreateEventAuthorizationMessage(hostWallet: string, title: string) {
   return `create-event:${hostWallet}:${title}`;
 }
+
+export function formatPaymentPathLabel(paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET") {
+  return paymentPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend reservation";
+}
