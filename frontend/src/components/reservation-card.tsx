@@ -248,7 +248,11 @@ export function ReservationCard({
         </label>
       ) : null}
       <div className="wallet-row">
-        <button className="secondary-action" onClick={() => void connectWallet()} disabled={Boolean(walletAddress)}>
+        <button
+          className="secondary-action"
+          onClick={() => void connectWallet()}
+          disabled={Boolean(walletAddress) && !isDemoWallet}
+        >
           Connect wallet
         </button>
         <p className="inline-meta">

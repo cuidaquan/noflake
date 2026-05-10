@@ -238,6 +238,38 @@ test("attendee hides browser-wallet intent preview after choosing demo fallback"
   await expect(page.getByText("Reservation path: Demo backend reservation")).toBeVisible();
 });
 
+test("attendee can switch back to browser wallet after choosing demo fallback", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "wallet-browser-return"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "wallet-browser-return" } }),
+      signMessage: async () => new Uint8Array([115, 105, 103])
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/events/evt_1");
+  await expect(page.getByLabel("Demo wallet")).toBeVisible();
+  await page.getByLabel("Demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
+  await expect(page.getByText("Payment path: Demo backend reservation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect wallet" })).toBeEnabled();
+  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await expect(page.getByText("Connected: wallet-browser-return")).toBeVisible();
+  await expect(page.getByText("Payment path: Browser wallet connected")).toBeVisible();
+  await expect(
+    page.getByText("Wallet intent: Reserve a seat for evt_1 with wallet-browser-return")
+  ).toBeVisible();
+});
+
 test("attendee can inspect event details before reserving", async ({ page, request }) => {
   const createResponse = await request.post("http://127.0.0.1:4101/events", {
     data: {

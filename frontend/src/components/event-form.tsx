@@ -149,7 +149,12 @@ export function EventForm() {
             ))}
           </select>
         </label>
-        <button className="secondary-action" type="button" onClick={() => void connectWallet()}>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() => void connectWallet()}
+          disabled={Boolean(walletAddress) && !isDemoWallet}
+        >
           Connect host wallet
         </button>
         {hostAuthorizationStatus ? (

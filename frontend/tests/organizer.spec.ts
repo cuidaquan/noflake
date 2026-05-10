@@ -216,6 +216,37 @@ test("organizer can switch to demo fallback and hide browser-wallet intent previ
   await expect(page.getByText(/^Host wallet: wallet-demo-1$/)).toBeVisible();
 });
 
+test("organizer can switch back to browser wallet after choosing demo fallback", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "host-browser-return"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "host-browser-return" } }),
+      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/organizer");
+  await expect(page.getByLabel("Host demo wallet")).toBeVisible();
+  await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected host wallet: wallet-demo-1")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect host wallet" })).toBeEnabled();
+  await page.getByRole("button", { name: "Connect host wallet" }).click();
+  await expect(page.getByText("Connected host wallet: host-browser-return")).toBeVisible();
+  await expect(page.getByText("Host wallet path: Browser wallet connected")).toBeVisible();
+  await expect(
+    page.getByText("Host wallet intent: Create event Untitled event with host-browser-return")
+  ).toBeVisible();
+});
+
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({
   page
 }) => {
