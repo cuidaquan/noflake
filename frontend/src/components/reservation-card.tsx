@@ -12,6 +12,7 @@ import {
 } from "../lib/api";
 import { prepareReservationWalletIntent } from "../lib/wallet-intent";
 import { useWallet } from "./wallet-provider";
+import { WalletIntentPreview } from "./wallet-intent-preview";
 
 type ReservationCardProps = {
   eventId: string;
@@ -188,12 +189,7 @@ export function ReservationCard({
   return (
     <section className="panel">
       {walletIntent ? (
-        <>
-          <p className="inline-meta">Wallet intent: {walletIntent.preflight.summary}</p>
-          <p className="inline-meta">Intent action: {walletIntent.preflight.action}</p>
-          <p className="inline-meta">Intent target: {walletIntent.preflight.subject}</p>
-          <p className="inline-meta">Settlement token: {walletIntent.preflight.paymentToken}</p>
-        </>
+        <WalletIntentPreview label="Wallet intent" preflight={walletIntent.preflight} />
       ) : null}
       <p className="eyebrow">ATTENDEE FLOW</p>
       <h1>{title}</h1>
