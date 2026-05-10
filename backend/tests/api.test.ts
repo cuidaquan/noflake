@@ -97,4 +97,46 @@ describe("backend api", () => {
     expect(cancelResponse.status).toBe(200);
     expect(cancelResponse.body.status).toBe("CANCELLED");
   });
+
+  it("runs sponsor settlement as settle -> prepare instead of one-pass completion", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Builder Sponsor Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "SPONSOR"
+    });
+
+    await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 30 });
+
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-1" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-2" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/check-in`)
+      .send({ attendeeWallet: "wallet-1" });
+
+    const settleResponse = await request(app).post(`/events/${createResponse.body.id}/settle`);
+    expect(settleResponse.status).toBe(200);
+    expect(settleResponse.body.forfeitedAmount).toBe(20);
+
+    const eventAfterSettle = await request(app).get(`/events/${createResponse.body.id}`);
+    expect(eventAfterSettle.body.status).toBe("SETTLING");
+
+    const prepareResponse = await request(app).post(
+      `/events/${createResponse.body.id}/prepare-sponsor-distribution`
+    );
+    expect(prepareResponse.status).toBe(200);
+    expect(prepareResponse.body.sponsorBonusPerAttendee).toBe(30);
+  });
 });

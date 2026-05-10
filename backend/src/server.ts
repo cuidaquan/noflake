@@ -89,6 +89,18 @@ export function buildServer() {
     res.status(200).json(reservation);
   });
 
+  app.post("/events/:eventId/fund-sponsor-pool", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    event.sponsorPoolFunded = Number(req.body.amount ?? 0);
+    res.status(200).json(event);
+  });
+
   app.post("/events/:eventId/settle", (req, res) => {
     const event =
       eventService.getEventById(req.params.eventId) ??
@@ -100,18 +112,49 @@ export function buildServer() {
     }
 
     const reservations = reservationService.getReservations(req.params.eventId);
-    const summary = settlementService.settle({ event, reservations });
+    const result = settlementService.settleReservations({ event, reservations });
 
-    for (const reservation of reservations) {
-      if (reservation.status === "CHECKED_IN") {
-        reservation.status = "REFUNDED";
-      } else if (reservation.status === "RESERVED") {
-        reservation.status = event.settlementMode === "STRICT" ? "FORFEITED" : "NO_SHOW";
+    store.reservations = store.reservations.map((reservation) => {
+      if (reservation.eventId !== req.params.eventId) {
+        return reservation;
       }
+
+      return result.updatedReservations.find((candidate) => candidate.id === reservation.id) ?? reservation;
+    });
+    event.status = event.settlementMode === "STRICT" ? "SETTLED" : "SETTLING";
+    event.distributionStatus = result.summary.distributionStatus;
+
+    res.status(200).json(result.summary);
+  });
+
+  app.post("/events/:eventId/prepare-party-distribution", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
     }
 
-    event.status = "SETTLED";
-    res.status(200).json(summary);
+    const reservations = reservationService.getReservations(req.params.eventId);
+    const result = settlementService.preparePartyDistribution({ event, reservations });
+    Object.assign(event, result.updatedEvent);
+
+    res.status(200).json(result.summary);
+  });
+
+  app.post("/events/:eventId/prepare-sponsor-distribution", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    const reservations = reservationService.getReservations(req.params.eventId);
+    const result = settlementService.prepareSponsorDistribution({ event, reservations });
+    Object.assign(event, result.updatedEvent);
+
+    res.status(200).json(result.summary);
   });
 
   app.post("/events/:eventId/cancel", (req, res) => {
@@ -119,7 +162,11 @@ export function buildServer() {
     const reservations = reservationService.getReservations(req.params.eventId);
 
     for (const reservation of reservations) {
-      if (reservation.status === "RESERVED" || reservation.status === "CHECKED_IN") {
+      if (
+        reservation.status === "RESERVED" ||
+        reservation.status === "CHECKED_IN" ||
+        reservation.status === "WAITLISTED"
+      ) {
         reservation.status = "REFUNDED";
         reservation.checkedInAt = null;
       }

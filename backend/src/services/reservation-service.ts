@@ -47,6 +47,23 @@ export function createReservationService(store: InMemoryStore) {
       };
     }
 
+    if (eventId === "evt_sponsor") {
+      return {
+        id: "evt_sponsor",
+        title: "Builder Sponsor Dinner",
+        hostWallet: "demo-host-wallet",
+        venue: "Shanghai",
+        startTime: "2026-05-20T19:00:00.000Z",
+        depositAmount: 20,
+        seatCount: 20,
+        cutoffTime: "2026-05-20T17:00:00.000Z",
+        settlementMode: "SPONSOR" as const,
+        distributionStatus: "PENDING" as const,
+        sponsorPoolFunded: 30,
+        status: "OPEN" as const
+      };
+    }
+
     if (eventId === "evt_undo") {
       return {
         id: "evt_undo",
@@ -87,6 +104,7 @@ export function createReservationService(store: InMemoryStore) {
     if (
       eventId !== "evt_1" &&
       eventId !== "evt_party" &&
+      eventId !== "evt_sponsor" &&
       eventId !== "evt_cancel" &&
       eventId !== "evt_undo"
     ) {
@@ -136,6 +154,42 @@ export function createReservationService(store: InMemoryStore) {
           status: "RESERVED",
           paidAmount: 20,
           createdAt: "2026-05-01T10:00:00.000Z",
+          checkedInAt: null,
+          waitlistOrder: null
+        }
+      );
+      return;
+    }
+
+    if (eventId === "evt_party" || eventId === "evt_sponsor") {
+      store.reservations.push(
+        {
+          id: eventId === "evt_party" ? "res_party_1" : "res_sponsor_1",
+          eventId,
+          attendeeWallet: eventId === "evt_party" ? "wallet-party-1" : "wallet-sponsor-1",
+          status: "CHECKED_IN",
+          paidAmount: 20,
+          createdAt: "2026-05-01T10:00:00.000Z",
+          checkedInAt: "2026-05-01T10:15:00.000Z",
+          waitlistOrder: null
+        },
+        {
+          id: eventId === "evt_party" ? "res_party_2" : "res_sponsor_2",
+          eventId,
+          attendeeWallet: eventId === "evt_party" ? "wallet-party-2" : "wallet-sponsor-2",
+          status: "CHECKED_IN",
+          paidAmount: 20,
+          createdAt: "2026-05-01T10:05:00.000Z",
+          checkedInAt: "2026-05-01T10:20:00.000Z",
+          waitlistOrder: null
+        },
+        {
+          id: eventId === "evt_party" ? "res_party_3" : "res_sponsor_3",
+          eventId,
+          attendeeWallet: eventId === "evt_party" ? "wallet-party-3" : "wallet-sponsor-3",
+          status: "RESERVED",
+          paidAmount: 20,
+          createdAt: "2026-05-01T10:10:00.000Z",
           checkedInAt: null,
           waitlistOrder: null
         }
@@ -215,7 +269,9 @@ export function createReservationService(store: InMemoryStore) {
         paidAmount: event.depositAmount,
         createdAt: new Date().toISOString(),
         checkedInAt: null,
-        waitlistOrder
+        waitlistOrder,
+        partyBonusClaimed: false,
+        sponsorBonusClaimed: false
       };
 
       store.reservations.push(reservation);
