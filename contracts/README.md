@@ -16,6 +16,8 @@ Included today:
 - `undo_check_in`
 - `cancel_event`
 - `settle_reservation`
+- `prepare_party_distribution`
+- `claim_party_bonus`
 - `finalize_event`
 - waitlist handling when an event is full
 - earliest-waitlist promotion after a cancellation
@@ -25,6 +27,7 @@ Included today:
 - strict / party / sponsor settlement mode state
 - local SPL token deposit transfer into the event vault on reservation
 - strict-mode refund / forfeiture settlement transfers
+- party-mode no-show pool retention, remainder payout, and attendee bonus claims
 - cancelled-event refund settlement for reserved / checked-in / waitlisted reservations
 - event and reservation status guardrails
 
@@ -147,7 +150,7 @@ On machines with that toolchain, the run may still print a trailing `websocket e
 If you see:
 
 ```text
-19 passing
+29 passing
 ```
 
 the test run is successful.
@@ -246,8 +249,18 @@ noflake
   ✔ allows a host to undo a check-in before settlement starts
   ✔ allows a host to cancel an event before settlement and marks the event cancelled
   ✔ refunds reserved, checked-in, and waitlisted reservations after event cancellation
+  ✔ refunds reserved reservations in party mode after event cancellation
   ✔ settles checked-in and no-show reservations in strict mode
   ✔ marks no-shows without forfeiture in party mode
+  ✔ does not allow preparing party distribution before all reservations are settled
+  ✔ prepares party distribution and sends the remainder to the host
+  ✔ sends the full no-show pool to the host when nobody checked in
+  ✔ allows checked-in attendees to claim an equal party bonus
+  ✔ does not allow claiming a party bonus twice
+  ✔ does not allow no-shows to claim a party bonus
+  ✔ does not finalize a party event before distribution is prepared
+  ✔ does not finalize a party event before all eligible attendees claim
+  ✔ finalizes a party event after all eligible attendees claim
   ✔ rejects settling a waitlisted reservation
   ✔ requires settling before finalizing an event
   ✔ does not finalize before all reserved attendees are settled
@@ -255,5 +268,5 @@ noflake
   ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-19 passing
+29 passing
 ```

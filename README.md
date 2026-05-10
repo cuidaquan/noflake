@@ -9,7 +9,7 @@ This repository currently ships a demo-ready MVP with:
 - attendee reservation with a mock wallet connect step
 - organizer check-in, undo, cancellation, and settlement flow
 - shared domain schemas across frontend and backend
-- an Anchor contract package for event lifecycle, waitlist, cancellation, settlement state, and strict-mode deposit vault transfers
+- an Anchor contract package for event lifecycle, waitlist, cancellation, settlement state, strict-mode deposit vault transfers, and party-mode bonus distribution
 
 ## Product Scope
 
@@ -73,6 +73,12 @@ The onchain package currently covers:
 - strict-mode onchain settlement:
   - checked-in attendees receive deposit refunds
   - reserved no-shows forfeit deposits to the host
+- party-mode onchain settlement:
+  - checked-in attendees receive deposit refunds first
+  - reserved no-shows remain in the event vault as the party bonus pool
+  - the host prepares a fixed per-attendee bonus after all reservations settle
+  - checked-in attendees claim equal party bonuses from the vault
+  - any division remainder is sent to the host
 - cancelled-event onchain refund flow for reserved, checked-in, and waitlisted reservations
 - finalization only after all active reservations are settled
 
@@ -234,7 +240,7 @@ That flow:
 If the output includes:
 
 ```text
-19 passing
+29 passing
 ```
 
 the contract test succeeded.
