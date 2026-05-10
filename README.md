@@ -6,7 +6,8 @@ Attendees lock a refundable USDC deposit to reserve a seat, check in on-site, an
 This repository currently ships a demo-ready MVP with:
 
 - organizer event creation
-- attendee reservation with a mock wallet connect step
+- attendee reservation with browser-wallet-first connect plus demo fallback
+- organizer host wallet selection from the same shared wallet provider
 - organizer check-in, undo, cancellation, and staged settlement flow
 - shared domain schemas across frontend and backend
 - an Anchor contract package for event lifecycle, waitlist, cancellation, settlement state, strict-mode deposit vault transfers, party-mode bonus distribution, and sponsor-mode bonus funding
@@ -49,9 +50,9 @@ Out of scope for MVP:
 
 ## Current Demo Flow
 
-1. Open `/organizer` and create an event.
-2. Open `/events/evt_1` and connect the mock wallet.
-3. Reserve a seat with the refundable USDC deposit flow.
+1. Open `/organizer` and create an event with the connected host wallet or the demo-host fallback.
+2. Open `/events/evt_1` and connect a browser wallet when available, otherwise use the demo fallback.
+3. Reserve a seat with the refundable USDC deposit flow and inspect the current payment path state.
 4. Fill the last seat and explain that later attendees are waitlisted.
 5. Open `/check-in/evt_1` and check in attendees.
 6. Run settlement, then prepare party or sponsor distribution when the selected mode requires it.
@@ -59,8 +60,9 @@ Out of scope for MVP:
 
 The demo boundary is intentional:
 
-- the web app still uses backend orchestration plus a mock wallet UX for speed of demoing
+- the web app now prefers browser wallet addresses, but reservation/payment execution still uses backend orchestration plus demo fallback semantics
 - the Anchor package already verifies the real onchain funding, refund, forfeiture, and bonus-claim lifecycle on localnet
+- the remaining wallet/payment gap is direct frontend signature flow and devnet USDC execution, not basic wallet awareness
 
 ## Commercialization
 
@@ -180,6 +182,13 @@ Current machine status:
 - frontend E2E tests pass locally
 - contract `cargo check` passes locally
 - WSL Ubuntu local contract tests pass with installed `anchor` and `solana` CLIs
+
+Frontend wallet state today:
+
+- browser wallet address is used when injected by the browser
+- attendee and organizer flows both fall back to local demo identities when no browser wallet is available
+- attendee UI shows whether the current path is browser-wallet-connected or demo-backend reservation
+- direct frontend transaction signing is still pending as a later slice
 
 ## Solana / Anchor Local Development
 
