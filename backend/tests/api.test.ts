@@ -45,6 +45,25 @@ describe("backend api", () => {
     expect(response.body.counts.reserved).toBeTypeOf("number");
   });
 
+  it("creates a sponsor event without requiring sponsor pool at event creation time", async () => {
+    const app = buildServer();
+
+    const response = await request(app).post("/events").send({
+      title: "Builder Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "SPONSOR"
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.settlementMode).toBe("SPONSOR");
+    expect(response.body.sponsorPoolAmount).toBeUndefined();
+  });
+
   it("cancels an event and undoes a check-in before settlement", async () => {
     const app = buildServer();
 

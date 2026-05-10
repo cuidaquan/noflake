@@ -1,5 +1,11 @@
 export type SettlementMode = "STRICT" | "PARTY" | "SPONSOR";
 
+export type DistributionStatus =
+  | "PENDING"
+  | "PREPARED"
+  | "CLAIM_IN_PROGRESS"
+  | "COMPLETED";
+
 export type EventStatus =
   | "DRAFT"
   | "OPEN"

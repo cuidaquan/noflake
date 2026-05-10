@@ -1,4 +1,9 @@
-import type { EventStatus, ReservationStatus, SettlementMode } from "@noflake/shared";
+import type {
+  DistributionStatus,
+  EventStatus,
+  ReservationStatus,
+  SettlementMode
+} from "@noflake/shared";
 
 export type EventRecord = {
   id: string;
@@ -11,6 +16,10 @@ export type EventRecord = {
   cutoffTime: string;
   settlementMode: SettlementMode;
   sponsorPoolAmount?: number;
+  sponsorPoolFunded?: number;
+  partyBonusPerAttendee?: number;
+  sponsorBonusPerAttendee?: number;
+  distributionStatus?: DistributionStatus;
   status: EventStatus;
 };
 
@@ -23,6 +32,8 @@ export type ReservationRecord = {
   createdAt: string;
   checkedInAt: string | null;
   waitlistOrder: number | null;
+  partyBonusClaimed?: boolean;
+  sponsorBonusClaimed?: boolean;
 };
 
 export type InMemoryStore = {

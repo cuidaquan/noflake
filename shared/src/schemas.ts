@@ -47,5 +47,8 @@ export const settlementSummarySchema = z.object({
   noShowCount: z.number().int().nonnegative(),
   refundedAmount: z.number().nonnegative(),
   forfeitedAmount: z.number().nonnegative(),
-  distributionStatus: z.enum(["PENDING", "COMPLETED"])
+  partyBonusPerAttendee: z.number().nonnegative().optional(),
+  sponsorBonusPerAttendee: z.number().nonnegative().optional(),
+  totalReturnedToAttendees: z.number().nonnegative().optional(),
+  distributionStatus: z.enum(["PENDING", "PREPARED", "CLAIM_IN_PROGRESS", "COMPLETED"])
 });
