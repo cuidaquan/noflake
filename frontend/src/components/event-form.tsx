@@ -36,13 +36,19 @@ export function EventForm() {
   const [dashboard, setDashboard] = useState<EventDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hostAuthorizationStatus, setHostAuthorizationStatus] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setErrorMessage(null);
+    setHostAuthorizationStatus(null);
 
     try {
+      if (!isDemoWallet) {
+        setHostAuthorizationStatus("Awaiting browser wallet signature...");
+      }
+
       const hostWalletAuthorization =
         !isDemoWallet && walletAddress
           ? await createWalletAuthorization(`create-event:${walletAddress}:${title}`)
@@ -50,6 +56,10 @@ export function EventForm() {
 
       if (!isDemoWallet && !hostWalletAuthorization) {
         throw new Error("Browser host wallet authorization is required before creating an event.");
+      }
+
+      if (!isDemoWallet) {
+        setHostAuthorizationStatus("Signed. Submitting event...");
       }
 
       const response = await createEvent({
@@ -70,6 +80,7 @@ export function EventForm() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create event");
     } finally {
+      setHostAuthorizationStatus(null);
       setIsSubmitting(false);
     }
   }
@@ -106,6 +117,9 @@ export function EventForm() {
         <button className="secondary-action" type="button" onClick={() => void connectWallet()}>
           Connect host wallet
         </button>
+        {hostAuthorizationStatus ? (
+          <p className="inline-meta">Host authorization status: {hostAuthorizationStatus}</p>
+        ) : null}
 
         <label className="field">
           <span>Title</span>

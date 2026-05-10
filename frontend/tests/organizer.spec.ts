@@ -44,6 +44,101 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
 });
 
+test("organizer sees browser-wallet signing progress before event creation completes", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    let releaseSignature: (() => void) | null = null;
+    let releaseCreateEvent: (() => void) | null = null;
+
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (url.endsWith("/events") && init?.method === "POST") {
+        await new Promise<void>((resolve) => {
+          releaseCreateEvent = resolve;
+        });
+      }
+
+      return originalFetch(input, init);
+    };
+
+    const provider = {
+      publicKey: {
+        toBase58: () => "host-browser-delayed"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "host-browser-delayed" } }),
+      signMessage: async () => {
+        await new Promise<void>((resolve) => {
+          releaseSignature = resolve;
+        });
+        return new Uint8Array([104, 111, 115, 116]);
+      }
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+
+    Object.defineProperty(window, "__noflakeHostWalletTest", {
+      configurable: true,
+      value: {
+        releaseSignature: () => releaseSignature?.(),
+        releaseCreateEvent: () => releaseCreateEvent?.()
+      }
+    });
+  });
+
+  await page.goto("/organizer");
+  await page.getByRole("button", { name: "Connect host wallet" }).click();
+  await expect(page.getByText("Connected host wallet: host-browser-delayed")).toBeVisible();
+  await page.getByLabel("Title").fill("Delayed Host Dinner");
+  await page.getByLabel("Venue").fill("Shanghai");
+  await page.getByLabel("Deposit Amount").fill("20");
+
+  const createClick = page.getByRole("button", { name: "Create Event" }).click();
+  await expect(
+    page.getByText("Host authorization status: Awaiting browser wallet signature...")
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeHostWalletTest?: {
+          releaseSignature: () => void;
+          releaseCreateEvent: () => void;
+        };
+      }
+    ).__noflakeHostWalletTest?.releaseSignature();
+  });
+
+  await expect(
+    page.getByText("Host authorization status: Signed. Submitting event...")
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeHostWalletTest?: {
+          releaseSignature: () => void;
+          releaseCreateEvent: () => void;
+        };
+      }
+    ).__noflakeHostWalletTest?.releaseCreateEvent();
+  });
+
+  await createClick;
+  await expect(page.getByText(/^Host wallet: host-browser-delayed$/)).toBeVisible();
+});
+
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({
   page
 }) => {
