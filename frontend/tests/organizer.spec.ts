@@ -3,9 +3,15 @@ import { expect, test } from "./test-helpers";
 test("organizer can create an event", async ({ page }) => {
   await page.goto("/organizer");
   await expect(page.getByText("Connected host wallet: demo-host-wallet")).toBeVisible();
+  await expect(
+    page.getByText("Browser wallet not detected. Using demo host wallet fallback for local flow.")
+  ).toBeVisible();
   await expect(page.getByLabel("Host demo wallet")).toBeVisible();
   await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
   await expect(page.getByText("Connected host wallet: wallet-demo-1")).toBeVisible();
+  await expect(
+    page.getByText("Demo host flow: wallet connect is mocked in the frontend, while contract funding is verified in WSL tests.")
+  ).toBeVisible();
   await page.getByLabel("Title").fill("Builder Dinner");
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");

@@ -128,10 +128,21 @@ export function EventForm() {
             browserWalletAvailable
           })}
         </p>
+        {!browserWalletAvailable ? (
+          <p className="inline-meta">
+            Browser wallet not detected. Using demo host wallet fallback for local flow.
+          </p>
+        ) : null}
         {browserWalletAvailable && !browserWalletCanSign ? (
           <p className="inline-meta">
             Connected browser wallet does not support message signing. Use demo flow or a
             compatible wallet.
+          </p>
+        ) : null}
+        {isDemoWallet ? (
+          <p className="inline-meta">
+            Demo host flow: wallet connect is mocked in the frontend, while contract funding is
+            verified in WSL tests.
           </p>
         ) : null}
         <label className="field">
