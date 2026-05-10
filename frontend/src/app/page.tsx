@@ -9,6 +9,7 @@ export default function HomePage() {
           Reserve a seat with a refundable USDC deposit, check in on-site, and
           settle attendance transparently on Solana.
         </p>
+        <p className="inline-meta">Browser wallets connect directly when available.</p>
         <section className="panel">
           <p className="eyebrow">COMMERCIAL MODEL</p>
           <p>Pricing: 9 USDC / event</p>

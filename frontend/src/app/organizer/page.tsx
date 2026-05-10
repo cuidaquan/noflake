@@ -10,6 +10,9 @@ export default function OrganizerPage() {
           Set your deposit, publish the event link, and use on-site check-in to
           settle attendance cleanly.
         </p>
+        <p className="inline-meta">
+          Attendees can connect a browser wallet or use the local demo fallback.
+        </p>
         <section className="panel">
           <p className="eyebrow">COMMERCIAL MODEL</p>
           <p>Pricing: 9 USDC / event</p>

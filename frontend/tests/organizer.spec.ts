@@ -25,6 +25,9 @@ test("organizer sees share link, QR payload, and dashboard counts after creating
 
 test("organizer sees sponsor funding guidance for sponsor mode", async ({ page }) => {
   await page.goto("/organizer");
+  await expect(
+    page.getByText("Attendees can connect a browser wallet or use the local demo fallback.")
+  ).toBeVisible();
   await page.getByLabel("Title").fill("Sponsor Dinner");
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");
