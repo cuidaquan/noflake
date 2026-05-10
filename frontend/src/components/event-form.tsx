@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import {
+  buildCreateEventAuthorizationMessage,
+  HOST_EVENT_SUBMISSION_STATUS
+} from "../../../shared/src/constants";
 import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
 import { useWallet } from "./wallet-provider";
 
@@ -46,12 +50,14 @@ export function EventForm() {
 
     try {
       if (!isDemoWallet) {
-        setHostAuthorizationStatus("Awaiting browser wallet signature...");
+        setHostAuthorizationStatus(HOST_EVENT_SUBMISSION_STATUS.awaitingSignature);
       }
 
       const hostWalletAuthorization =
         !isDemoWallet && walletAddress
-          ? await createWalletAuthorization(`create-event:${walletAddress}:${title}`)
+          ? await createWalletAuthorization(
+              buildCreateEventAuthorizationMessage(walletAddress, title)
+            )
           : undefined;
 
       if (!isDemoWallet && !hostWalletAuthorization) {
@@ -59,7 +65,7 @@ export function EventForm() {
       }
 
       if (!isDemoWallet) {
-        setHostAuthorizationStatus("Signed. Submitting event...");
+        setHostAuthorizationStatus(HOST_EVENT_SUBMISSION_STATUS.submitting);
       }
 
       const response = await createEvent({

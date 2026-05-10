@@ -17,10 +17,13 @@ test("organizer can apply a scanned check-in payload and check in the matching a
   await expect(page.getByTestId("checkin-pass-payload")).toHaveText(
     /\/check-in\/evt_cancel\?attendeeWallet=wallet-undo-1/
   );
-  const payload = await page.getByTestId("checkin-pass-payload").textContent();
+  const payload = await page.getByTestId("checkin-pass-payload").evaluate((element) =>
+    element.textContent?.trim() ?? ""
+  );
+  expect(payload).toBe("/check-in/evt_cancel?attendeeWallet=wallet-undo-1");
 
   await page.goto("/check-in/evt_cancel");
-  await page.getByLabel("Scan payload").fill(payload ?? "");
+  await page.getByLabel("Scan payload").fill(payload);
   await page.getByRole("button", { name: "Apply Scan Payload" }).click();
   await expect(page.getByText("Scanned attendee: wallet-undo-1")).toBeVisible();
   await page.getByRole("button", { name: "Check In wallet-undo-1" }).click();

@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  buildReservationAuthorizationMessage,
+  RESERVATION_SUBMISSION_STATUS
+} from "../../../shared/src/constants";
+import {
   cancelReservation as cancelReservationRequest,
   claimPartyBonus,
   claimSponsorBonus,
@@ -77,12 +81,14 @@ export function ReservationCard({
 
     try {
       if (!isDemoWallet) {
-        setAuthorizationStatus("Awaiting browser wallet signature...");
+        setAuthorizationStatus(RESERVATION_SUBMISSION_STATUS.awaitingSignature);
       }
 
       const walletAuthorization =
         !isDemoWallet && walletAddress
-          ? await createWalletAuthorization(`reserve:${eventId}:${walletAddress}`)
+          ? await createWalletAuthorization(
+              buildReservationAuthorizationMessage(eventId, walletAddress)
+            )
           : undefined;
 
       if (!isDemoWallet && !walletAuthorization) {
@@ -90,7 +96,7 @@ export function ReservationCard({
       }
 
       if (!isDemoWallet) {
-        setAuthorizationStatus("Signed. Submitting reservation...");
+        setAuthorizationStatus(RESERVATION_SUBMISSION_STATUS.submitting);
       }
 
       const payload = await createReservation(
