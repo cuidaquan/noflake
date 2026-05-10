@@ -10,6 +10,10 @@ export default function OrganizerPage() {
           Set your deposit, publish the event link, and use on-site check-in to
           settle attendance cleanly.
         </p>
+        <section className="panel">
+          <p className="eyebrow">CHECK-IN FLOW</p>
+          <p>Generate a share link, display the QR code at the door, and use the check-in console on-site.</p>
+        </section>
         <EventForm />
       </section>
     </main>

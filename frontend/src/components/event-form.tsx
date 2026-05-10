@@ -118,6 +118,11 @@ export function EventForm() {
           <p>Mode: {createdEvent.settlementMode}</p>
           <p>Share link: {dashboard?.shareUrl ?? `/events/${createdEvent.id}`}</p>
           <p>QR payload: {dashboard?.qrValue ?? `/events/${createdEvent.id}`}</p>
+          <div className="qr-frame" aria-label="QR code">
+            <span>QR code</span>
+            <code>{dashboard?.qrValue ?? `/events/${createdEvent.id}`}</code>
+          </div>
+          <p className="inline-meta">Scan this at the door for check-in.</p>
           <p>Reserved: {dashboard?.counts.reserved ?? 0}</p>
           <p>Waitlisted: {dashboard?.counts.waitlisted ?? 0}</p>
           <p>Checked In: {dashboard?.counts.checkedIn ?? 0}</p>
