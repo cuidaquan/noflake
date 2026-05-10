@@ -310,4 +310,42 @@ describe("backend api", () => {
       .send({ attendeeWallet: "wallet-1" });
     expect(lateClaim.status).toBe(400);
   });
+
+  it("blocks sponsor funding and claim flow after a sponsor event is cancelled", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Sponsor Cancel Guard",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "SPONSOR"
+    });
+
+    await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 30 });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-1" });
+    await request(app).post(`/events/${createResponse.body.id}/cancel`);
+
+    const lateFunding = await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 10 });
+    expect(lateFunding.status).toBe(400);
+
+    const latePrepare = await request(app).post(
+      `/events/${createResponse.body.id}/prepare-sponsor-distribution`
+    );
+    expect(latePrepare.status).toBe(400);
+
+    const lateClaim = await request(app)
+      .post(`/events/${createResponse.body.id}/claim-sponsor-bonus`)
+      .send({ attendeeWallet: "wallet-1" });
+    expect(lateClaim.status).toBe(400);
+  });
 });

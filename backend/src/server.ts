@@ -124,6 +124,11 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Sponsor pool funding is closed after cancellation" });
+      return;
+    }
+
     if (event.status === "SETTLING" || event.status === "SETTLED") {
       res.status(400).json({ message: "Sponsor pool funding is closed after settlement starts" });
       return;
@@ -176,6 +181,11 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Party distribution is closed after cancellation" });
+      return;
+    }
+
     const reservations = reservationService.getReservations(req.params.eventId);
     const result = settlementService.preparePartyDistribution({ event, reservations });
     Object.assign(event, result.updatedEvent);
@@ -192,6 +202,11 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Sponsor distribution is closed after cancellation" });
+      return;
+    }
+
     const reservations = reservationService.getReservations(req.params.eventId);
     const result = settlementService.prepareSponsorDistribution({ event, reservations });
     Object.assign(event, result.updatedEvent);
@@ -202,6 +217,11 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   app.post("/events/:eventId/claim-party-bonus", (req, res) => {
     const event = eventService.getEventById(req.params.eventId);
+
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Party claim is closed after cancellation" });
+      return;
+    }
 
     if (!event) {
       res.status(404).json({ message: "Event not found" });
@@ -226,6 +246,11 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events/:eventId/claim-sponsor-bonus", (req, res) => {
     const event = eventService.getEventById(req.params.eventId);
 
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Sponsor claim is closed after cancellation" });
+      return;
+    }
+
     if (!event) {
       res.status(404).json({ message: "Event not found" });
       return;
@@ -248,6 +273,11 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   app.post("/events/:eventId/finalize", (req, res) => {
     const event = eventService.getEventById(req.params.eventId);
+
+    if (event.status === "CANCELLED") {
+      res.status(400).json({ message: "Finalize is closed after cancellation" });
+      return;
+    }
 
     if (!event) {
       res.status(404).json({ message: "Event not found" });
