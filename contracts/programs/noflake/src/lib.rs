@@ -83,6 +83,7 @@ pub mod noflake {
         reservation.attendee = ctx.accounts.attendee.key();
         reservation.paid_amount = event.deposit_amount;
         reservation.party_bonus_claimed = false;
+        reservation.sponsor_bonus_claimed = false;
         reservation.bump = ctx.bumps.reservation;
 
         if event.reserved_count < event.seat_count {
@@ -601,6 +602,58 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn claim_sponsor_bonus(ctx: Context<ClaimSponsorBonus>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+        let reservation = &mut ctx.accounts.reservation;
+
+        require!(
+            event.settlement_mode == SettlementMode::Sponsor,
+            NoflakeError::SponsorDistributionUnavailable
+        );
+        require!(
+            event.sponsor_distribution_prepared,
+            NoflakeError::SponsorDistributionNotPrepared
+        );
+        require!(
+            reservation.status == ReservationStatus::Refunded,
+            NoflakeError::SponsorBonusIneligible
+        );
+        require!(
+            !reservation.sponsor_bonus_claimed,
+            NoflakeError::SponsorBonusAlreadyClaimed
+        );
+
+        let event_key = event.key();
+        let sponsor_vault_bump_seed = [event.sponsor_vault_authority_bump];
+        let sponsor_signer_seeds = &[&[
+            b"sponsor-vault",
+            event_key.as_ref(),
+            &sponsor_vault_bump_seed,
+        ][..]];
+
+        if event.sponsor_bonus_per_attendee > 0 {
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.sponsor_vault_token.to_account_info(),
+                        mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                        to: ctx.accounts.attendee_deposit_token.to_account_info(),
+                        authority: ctx.accounts.sponsor_vault_authority.to_account_info(),
+                    },
+                    sponsor_signer_seeds,
+                ),
+                event.sponsor_bonus_per_attendee,
+                ctx.accounts.deposit_mint_account.decimals,
+            )?;
+        }
+
+        reservation.sponsor_bonus_claimed = true;
+        event.sponsor_bonus_claimed_count =
+            event.sponsor_bonus_claimed_count.saturating_add(1);
+        Ok(())
+    }
+
     pub fn fund_sponsor_pool(ctx: Context<FundSponsorPool>, amount: u64) -> Result<()> {
         let event = &mut ctx.accounts.event;
 
@@ -711,6 +764,17 @@ pub mod noflake {
             );
             require!(
                 event.party_bonus_claimed_count == event.checked_in_count,
+                NoflakeError::EventNotReadyToFinalize
+            );
+        }
+
+        if event.settlement_mode == SettlementMode::Sponsor {
+            require!(
+                event.sponsor_distribution_prepared,
+                NoflakeError::EventNotReadyToFinalize
+            );
+            require!(
+                event.sponsor_bonus_claimed_count == event.checked_in_count,
                 NoflakeError::EventNotReadyToFinalize
             );
         }
@@ -1009,6 +1073,41 @@ pub struct PrepareSponsorDistribution<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ClaimSponsorBonus<'info> {
+    pub attendee: Signer<'info>,
+    #[account(mut)]
+    pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical sponsor vault authority for this event.
+    #[account(
+        seeds = [b"sponsor-vault", event.key().as_ref()],
+        bump = event.sponsor_vault_authority_bump
+    )]
+    pub sponsor_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = sponsor_vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub sponsor_vault_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = attendee,
+        associated_token::token_program = token_program,
+    )]
+    pub attendee_deposit_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut, has_one = event, has_one = attendee)]
+    pub reservation: Account<'info, ReservationAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 pub struct FundSponsorPool<'info> {
     #[account(mut)]
     pub sponsor: Signer<'info>,
@@ -1127,6 +1226,7 @@ pub struct ReservationAccount {
     pub paid_amount: u64,
     pub waitlist_order: u64,
     pub party_bonus_claimed: bool,
+    pub sponsor_bonus_claimed: bool,
     pub bump: u8,
 }
 
@@ -1205,6 +1305,12 @@ pub enum NoflakeError {
     SponsorDistributionUnavailable,
     #[msg("Sponsor distribution has already been prepared.")]
     SponsorDistributionAlreadyPrepared,
+    #[msg("Sponsor distribution has not been prepared yet.")]
+    SponsorDistributionNotPrepared,
+    #[msg("Reservation is not eligible for a sponsor bonus.")]
+    SponsorBonusIneligible,
+    #[msg("Sponsor bonus has already been claimed.")]
+    SponsorBonusAlreadyClaimed,
     #[msg("Sponsor does not match the event sponsor.")]
     SponsorMismatch,
 }
