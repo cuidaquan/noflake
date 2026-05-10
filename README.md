@@ -51,7 +51,7 @@ Out of scope for MVP:
 ## Current Demo Flow
 
 1. Open `/organizer` and create an event with the connected host wallet or the demo-host fallback.
-2. Open `/events/evt_1` and connect a browser wallet when available, otherwise use the demo fallback.
+2. Open `/events/evt_1` and connect a browser wallet when available, or explicitly switch into the demo fallback from the same page.
 3. Reserve a seat with the refundable USDC deposit flow and inspect the current payment path state.
 4. Fill the last seat and explain that later attendees are waitlisted.
 5. Open `/check-in/evt_1` and check in attendees.
@@ -60,7 +60,8 @@ Out of scope for MVP:
 
 The demo boundary is intentional:
 
-- the web app now prefers browser wallet addresses, but reservation/payment execution still uses backend orchestration plus demo fallback semantics
+- the web app now prefers browser wallet addresses, but organizer and attendee flows can explicitly move between browser-wallet and demo fallback modes before submission
+- reservation/payment execution still uses backend orchestration plus demo fallback semantics even when browser-wallet authorization is captured in the UI
 - the Anchor package already verifies the real onchain funding, refund, forfeiture, and bonus-claim lifecycle on localnet
 - the remaining wallet/payment gap is direct frontend signature flow and devnet USDC execution, not basic wallet awareness
 
@@ -187,7 +188,9 @@ Frontend wallet state today:
 
 - browser wallet address is used when injected by the browser
 - attendee and organizer flows both fall back to local demo identities when no browser wallet is available
+- attendee and organizer flows can explicitly switch from browser-wallet mode into demo fallback and back again without reloading the page
 - attendee UI shows whether the current path is browser-wallet-connected or demo-backend reservation
+- organizer success, event detail, and check-in surfaces echo wallet provenance and host/payment path labels
 - direct frontend transaction signing is still pending as a later slice
 
 ## Solana / Anchor Local Development
