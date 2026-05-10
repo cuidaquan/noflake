@@ -552,6 +552,59 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn refund_cancelled_sponsor_pool(ctx: Context<RefundCancelledSponsorPool>) -> Result<()> {
+        let event = &ctx.accounts.event;
+
+        require!(
+            event.settlement_mode == SettlementMode::Sponsor,
+            NoflakeError::SponsorDistributionUnavailable
+        );
+        require!(
+            event.status == EventStatus::Cancelled,
+            NoflakeError::EventNotReadyToFinalize
+        );
+
+        let sponsor = event.sponsor.ok_or(NoflakeError::SponsorDistributionUnavailable)?;
+        require!(
+            sponsor == ctx.accounts.sponsor.key(),
+            NoflakeError::SponsorMismatch
+        );
+        require!(
+            ctx.accounts.deposit_mint_account.key() == event.deposit_mint,
+            NoflakeError::InvalidDepositMint
+        );
+
+        let refund_amount = ctx.accounts.sponsor_vault_token.amount;
+        if refund_amount == 0 {
+            return Ok(());
+        }
+
+        let event_key = event.key();
+        let sponsor_vault_bump_seed = [event.sponsor_vault_authority_bump];
+        let sponsor_signer_seeds = &[&[
+            b"sponsor-vault",
+            event_key.as_ref(),
+            &sponsor_vault_bump_seed,
+        ][..]];
+
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.sponsor_vault_token.to_account_info(),
+                    mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                    to: ctx.accounts.sponsor_source_token.to_account_info(),
+                    authority: ctx.accounts.sponsor_vault_authority.to_account_info(),
+                },
+                sponsor_signer_seeds,
+            ),
+            refund_amount,
+            ctx.accounts.deposit_mint_account.decimals,
+        )?;
+
+        Ok(())
+    }
+
     pub fn finalize_event(ctx: Context<FinalizeEvent>) -> Result<()> {
         let event = &mut ctx.accounts.event;
 
@@ -872,6 +925,39 @@ pub struct FundSponsorPool<'info> {
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RefundCancelledSponsorPool<'info> {
+    #[account(mut)]
+    pub sponsor: Signer<'info>,
+    pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical sponsor vault authority for this event.
+    #[account(
+        seeds = [b"sponsor-vault", event.key().as_ref()],
+        bump = event.sponsor_vault_authority_bump
+    )]
+    pub sponsor_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = sponsor,
+        associated_token::token_program = token_program,
+    )]
+    pub sponsor_source_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = sponsor_vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub sponsor_vault_token: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

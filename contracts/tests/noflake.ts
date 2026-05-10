@@ -692,6 +692,45 @@ describe("noflake", () => {
     await sendTransaction(transaction, sponsor);
   };
 
+  const buildRefundCancelledSponsorPoolTransaction = async ({
+    sponsor,
+    eventPda,
+  }: {
+    sponsor: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+
+    return program.methods
+      .refundCancelledSponsorPool()
+      .accountsPartial({
+        sponsor: sponsor.publicKey,
+        event: eventPda,
+        sponsorVaultAuthority: sponsorConfig.sponsorVaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        sponsorSourceToken: sponsorConfig.sponsorSourceAta,
+        sponsorVaultToken: sponsorConfig.sponsorVaultAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
+  const refundCancelledSponsorPool = async ({
+    sponsor,
+    eventPda,
+  }: {
+    sponsor: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+  }) => {
+    const transaction = await buildRefundCancelledSponsorPoolTransaction({
+      sponsor,
+      eventPda,
+    });
+
+    await sendTransaction(transaction, sponsor);
+  };
+
   const undoCheckIn = async ({
     host,
     eventPda,
@@ -1891,6 +1930,72 @@ describe("noflake", () => {
       sendTransaction(secondFundTransaction, secondSponsor),
       "SponsorMismatch"
     );
+  });
+
+  it("refunds the sponsor pool to the sponsor after sponsor event cancellation", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const reservationPda = await reserveSeat(eventPda, attendee);
+    const fundingConfig = getFundingConfig(eventPda);
+    const attendeeAta = getAttendeeDepositAta(eventPda, attendee.publicKey);
+    const sponsorConfig = await setupSponsorFunding({
+      sponsor,
+      eventPda,
+      amount: 700_000_000n,
+    });
+
+    await fundSponsorPool({
+      sponsor,
+      eventPda,
+      amount: 700_000_000n,
+    });
+
+    await cancelEvent({
+      host,
+      eventPda,
+    });
+
+    const attendeeBalanceBeforeSettlement = await getTokenBalance(attendeeAta);
+    const sponsorBalanceBeforeRefund = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+    const sponsorVaultBeforeRefund = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda,
+    });
+    await refundCancelledSponsorPool({
+      sponsor,
+      eventPda,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const reservationAccount = await program.account.reservationAccount.fetch(reservationPda);
+    const attendeeBalanceAfterSettlement = await getTokenBalance(attendeeAta);
+    const sponsorBalanceAfterRefund = await getTokenBalance(sponsorConfig.sponsorSourceAta);
+    const sponsorVaultAfterRefund = await getTokenBalance(sponsorConfig.sponsorVaultAta);
+    const eventVaultBalance = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(enumVariant(event.status as Record<string, unknown>)).to.equal("cancelled");
+    expect(enumVariant(reservationAccount.status as Record<string, unknown>)).to.equal(
+      "refunded"
+    );
+    expect(attendeeBalanceAfterSettlement - attendeeBalanceBeforeSettlement).to.equal(
+      500_000_000n
+    );
+    expect(sponsorBalanceAfterRefund - sponsorBalanceBeforeRefund).to.equal(700_000_000n);
+    expect(sponsorVaultBeforeRefund - sponsorVaultAfterRefund).to.equal(700_000_000n);
+    expect(sponsorVaultAfterRefund).to.equal(0n);
+    expect(eventVaultBalance).to.equal(0n);
   });
 
   it("rejects settling a waitlisted reservation", async () => {
