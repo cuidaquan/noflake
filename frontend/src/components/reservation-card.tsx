@@ -296,6 +296,11 @@ export function ReservationCard({
           {reservation.walletAuthorization ? (
             <p className="inline-meta">Wallet authorization: Signed in browser wallet</p>
           ) : null}
+          {reservation.walletAuthorizationMessage ? (
+            <p className="inline-meta">
+              Authorization payload: {reservation.walletAuthorizationMessage}
+            </p>
+          ) : null}
           {checkInPass && reservation.status !== "CANCELLED" ? (
             <p className="inline-meta">
               Check-in pass: <code data-testid="checkin-pass-payload">{checkInPass}</code>

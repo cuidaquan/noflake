@@ -11,6 +11,7 @@ type CreatedEvent = {
   title: string;
   hostWallet: string;
   creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostAuthorizationMessage?: string;
   hostWalletAuthorization?: string;
   venue: string;
   depositAmount: number;
@@ -210,6 +211,11 @@ export function EventForm() {
           <p>Host wallet: {createdEvent.hostWallet}</p>
           {createdEvent.hostWalletAuthorization ? (
             <p className="inline-meta">Host authorization: Signed in browser wallet</p>
+          ) : null}
+          {createdEvent.hostAuthorizationMessage ? (
+            <p className="inline-meta">
+              Host authorization payload: {createdEvent.hostAuthorizationMessage}
+            </p>
           ) : null}
           <p>{createdEvent.depositAmount} USDC deposit</p>
           <p>{createdEvent.seatCount} seats</p>

@@ -51,6 +51,9 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page.getByText(/^Host wallet: host-browser-1$/)).toBeVisible();
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+  await expect(
+    page.getByText("Host authorization payload: create-event:host-browser-1:Browser Host Dinner")
+  ).toBeVisible();
 });
 
 test("organizer sees browser-wallet signing progress before event creation completes", async ({

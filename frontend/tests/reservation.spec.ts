@@ -52,6 +52,9 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
   await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Wallet authorization: Signed in browser wallet")).toBeVisible();
+  await expect(
+    page.getByText("Authorization payload: reserve:evt_1:wallet-browser-1")
+  ).toHaveCount(2);
 });
 
 test("attendee sees browser-wallet signing progress before reservation submission completes", async ({
