@@ -11,6 +11,7 @@ test("organizer can create an event", async ({ page }) => {
   await page.getByLabel("Deposit Amount").fill("20");
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page.getByText("Builder Dinner")).toBeVisible();
+  await expect(page.getByText(/^Host wallet: wallet-demo-1$/)).toBeVisible();
 });
 
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({

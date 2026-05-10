@@ -7,6 +7,7 @@ import { useWallet } from "./wallet-provider";
 type CreatedEvent = {
   id: string;
   title: string;
+  hostWallet: string;
   venue: string;
   depositAmount: number;
   seatCount: number;
@@ -135,6 +136,7 @@ export function EventForm() {
           <p className="eyebrow">EVENT CREATED</p>
           <h2>{createdEvent.title}</h2>
           <p>{createdEvent.venue}</p>
+          <p>Host wallet: {createdEvent.hostWallet}</p>
           <p>{createdEvent.depositAmount} USDC deposit</p>
           <p>{createdEvent.seatCount} seats</p>
           <p>Mode: {createdEvent.settlementMode}</p>
