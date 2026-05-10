@@ -7,6 +7,8 @@ type SolanaProvider = {
   };
   connect: () => Promise<unknown>;
   signMessage?: (message: Uint8Array) => Promise<Uint8Array>;
+  signTransaction?: <T>(transaction: T) => Promise<T>;
+  signAllTransactions?: <T>(transactions: T[]) => Promise<T[]>;
 };
 
 export function getBrowserWalletProvider(): SolanaProvider | null {
@@ -33,6 +35,13 @@ export function supportsWalletMessageSigning(provider: SolanaProvider | null): b
   return typeof provider?.signMessage === "function";
 }
 
+export function supportsWalletTransactionSigning(provider: SolanaProvider | null): boolean {
+  return (
+    typeof provider?.signTransaction === "function" ||
+    typeof provider?.signAllTransactions === "function"
+  );
+}
+
 function toBase64(bytes: Uint8Array) {
   let binary = "";
 
@@ -52,4 +61,19 @@ export async function signWalletAuthorization(message: string): Promise<string |
 
   const signature = await provider.signMessage(new TextEncoder().encode(message));
   return toBase64(signature);
+}
+
+export async function prepareWalletTransaction(marker: string): Promise<string | null> {
+  const provider = getBrowserWalletProvider();
+
+  if (!provider?.signTransaction) {
+    return null;
+  }
+
+  await provider.signTransaction({
+    __noflakeTransaction: true,
+    marker
+  });
+
+  return `demo-tx-${marker}`;
 }

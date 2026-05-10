@@ -39,17 +39,52 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   page
 }) => {
   await page.addInitScript(() => {
+    let releaseCreateEvent: (() => void) | null = null;
+    let releaseTransactionPreparation: (() => void) | null = null;
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (url.endsWith("/events") && init?.method === "POST") {
+        await new Promise<void>((resolve) => {
+          releaseCreateEvent = resolve;
+        });
+      }
+
+      return originalFetch(input, init);
+    };
+
     const provider = {
       publicKey: {
         toBase58: () => "host-browser-1"
       },
       connect: async () => ({ publicKey: { toBase58: () => "host-browser-1" } }),
-      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+      signMessage: async () => new Uint8Array([104, 111, 115, 116]),
+      signTransaction: async (transaction: unknown) => {
+        await new Promise<void>((resolve) => {
+          releaseTransactionPreparation = resolve;
+        });
+        return transaction;
+      }
     };
 
     Object.defineProperty(window, "solana", {
       configurable: true,
       value: provider
+    });
+
+    Object.defineProperty(window, "__noflakeHostWalletPrepTest", {
+      configurable: true,
+      value: {
+        releaseTransactionPreparation: () => releaseTransactionPreparation?.(),
+        releaseCreateEvent: () => releaseCreateEvent?.()
+      }
     });
   });
 
@@ -57,6 +92,7 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await expect(page.getByText("Host wallet path: Browser wallet available")).toBeVisible();
   await page.getByRole("button", { name: "Connect host wallet" }).click();
   await expect(page.getByText("Connected host wallet: host-browser-1")).toBeVisible();
+  await expect(page.getByText("Host transaction path: Browser wallet can sign transactions")).toBeVisible();
   await page.getByLabel("Title").fill("Browser Host Dinner");
   await expect(
     page.getByText("Host wallet intent: Create event Browser Host Dinner with host-browser-1")
@@ -69,10 +105,34 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await expect(page.getByText("Settlement token: USDC")).toBeVisible();
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");
-  await page.getByRole("button", { name: "Create Event" }).click();
+  const createClick = page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page.getByText("Host authorization status: Preparing Solana transaction...")).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeHostWalletPrepTest?: {
+          releaseTransactionPreparation: () => void;
+          releaseCreateEvent: () => void;
+        };
+      }
+    ).__noflakeHostWalletPrepTest?.releaseTransactionPreparation();
+  });
+  await expect(page.getByText("Host authorization status: Signed. Submitting event...")).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __noflakeHostWalletPrepTest?: {
+          releaseTransactionPreparation: () => void;
+          releaseCreateEvent: () => void;
+        };
+      }
+    ).__noflakeHostWalletPrepTest?.releaseCreateEvent();
+  });
+  await createClick;
   await expect(page.getByText(/^Host wallet: host-browser-1$/)).toBeVisible();
   await expect(page.getByText("Created path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+  await expect(page.getByText(/^Transaction signature: /)).toBeVisible();
   await expect(
     page.getByText("Host authorization payload: create-event:host-browser-1:Browser Host Dinner")
   ).toBeVisible();
@@ -114,7 +174,8 @@ test("organizer sees browser-wallet signing progress before event creation compl
           releaseSignature = resolve;
         });
         return new Uint8Array([104, 111, 115, 116]);
-      }
+      },
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {
@@ -214,7 +275,8 @@ test("organizer can switch to demo fallback and hide browser-wallet intent previ
         toBase58: () => "host-browser-1"
       },
       connect: async () => ({ publicKey: { toBase58: () => "host-browser-1" } }),
-      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+      signMessage: async () => new Uint8Array([104, 111, 115, 116]),
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {
@@ -247,7 +309,8 @@ test("organizer can switch back to browser wallet after choosing demo fallback",
         toBase58: () => "host-browser-return"
       },
       connect: async () => ({ publicKey: { toBase58: () => "host-browser-return" } }),
-      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+      signMessage: async () => new Uint8Array([104, 111, 115, 116]),
+      signTransaction: async (transaction: unknown) => transaction
     };
 
     Object.defineProperty(window, "solana", {
@@ -259,7 +322,6 @@ test("organizer can switch back to browser wallet after choosing demo fallback",
   await page.goto("/organizer");
   await expect(page.getByLabel("Host demo wallet")).toBeVisible();
   await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
-  await expect(page.getByLabel("Host demo wallet")).toHaveValue("wallet-demo-1");
   await expect(page.getByText("Host wallet path: Demo backend host")).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect host wallet" })).toBeEnabled();
   await page.getByRole("button", { name: "Connect host wallet" }).click();

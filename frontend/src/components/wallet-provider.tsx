@@ -10,8 +10,10 @@ import {
   DEMO_WALLET_ADDRESS,
   getBrowserWalletProvider,
   getConnectedWalletAddress,
+  prepareWalletTransaction,
   signWalletAuthorization,
-  supportsWalletMessageSigning
+  supportsWalletMessageSigning,
+  supportsWalletTransactionSigning
 } from "../lib/wallet";
 
 const DEMO_WALLETS = [
@@ -32,9 +34,11 @@ type WalletContextValue = {
   isDemoWallet: boolean;
   browserWalletAvailable: boolean;
   browserWalletCanSign: boolean;
+  browserWalletCanSignTransactions: boolean;
   demoWallets: readonly string[];
   connectWallet: () => void;
   createWalletAuthorization: (message: string) => Promise<string | null>;
+  createWalletTransactionSignature: (marker: string) => Promise<string | null>;
   selectDemoWallet: (walletAddress: string) => void;
 };
 
@@ -46,6 +50,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const browserWalletProvider = getBrowserWalletProvider();
   const browserWalletAvailable = Boolean(browserWalletProvider);
   const browserWalletCanSign = supportsWalletMessageSigning(browserWalletProvider);
+  const browserWalletCanSignTransactions = supportsWalletTransactionSigning(browserWalletProvider);
 
   return (
     <WalletContext.Provider
@@ -54,6 +59,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isDemoWallet,
         browserWalletAvailable,
         browserWalletCanSign,
+        browserWalletCanSignTransactions,
         demoWallets: DEMO_WALLETS,
         async connectWallet() {
           const provider = getBrowserWalletProvider();
@@ -78,6 +84,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         },
         createWalletAuthorization(message) {
           return signWalletAuthorization(message);
+        },
+        createWalletTransactionSignature(marker) {
+          return prepareWalletTransaction(marker);
         },
         selectDemoWallet(nextWalletAddress) {
           setWalletAddress(nextWalletAddress || null);

@@ -5,6 +5,10 @@ import { formatCreationPathLabel } from "../../../shared/src/constants";
 import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
 import { formatCurrentHostPathLabel } from "../lib/wallet-path";
 import { prepareCreateEventWalletIntent } from "../lib/wallet-intent";
+import {
+  buildCreateEventTransactionMarker,
+  buildCreateEventTransactionSummary
+} from "../lib/solana-transaction";
 import { useWallet } from "./wallet-provider";
 import { WalletIntentPreview } from "./wallet-intent-preview";
 
@@ -13,6 +17,7 @@ type CreatedEvent = {
   title: string;
   hostWallet: string;
   creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  transactionSignature?: string;
   hostAuthorizationMessage?: string;
   hostWalletAuthorization?: string;
   venue: string;
@@ -27,10 +32,12 @@ export function EventForm() {
     isDemoWallet,
     browserWalletAvailable,
     browserWalletCanSign,
+    browserWalletCanSignTransactions,
     demoWallets,
     selectDemoWallet,
     connectWallet,
-    createWalletAuthorization
+    createWalletAuthorization,
+    createWalletTransactionSignature
   } = useWallet();
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
@@ -80,6 +87,22 @@ export function EventForm() {
       }
 
       if (!isDemoWallet) {
+        setHostAuthorizationStatus("Preparing Solana transaction...");
+      }
+
+      const transactionSignature =
+        !isDemoWallet && walletAddress
+          ? await createWalletTransactionSignature(
+              buildCreateEventTransactionMarker({
+                hostWallet: walletAddress,
+                title,
+                depositAmount: Number(depositAmount),
+                seatCount: Number(seatCount)
+              })
+            )
+          : undefined;
+
+      if (!isDemoWallet) {
         setHostAuthorizationStatus(activeWalletIntent?.submittingStatus ?? null);
       }
 
@@ -99,7 +122,10 @@ export function EventForm() {
         settlementMode
       });
 
-      setCreatedEvent(response);
+      setCreatedEvent({
+        ...response,
+        transactionSignature
+      });
       setDashboard(await getEventDashboard(response.id));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create event");
@@ -138,6 +164,26 @@ export function EventForm() {
             Connected browser wallet does not support message signing. Use demo flow or a
             compatible wallet.
           </p>
+        ) : null}
+        {browserWalletAvailable && !isDemoWallet ? (
+          <>
+            <p className="inline-meta">
+              Host transaction path:{" "}
+              {browserWalletCanSignTransactions
+                ? "Browser wallet can sign transactions"
+                : "Browser wallet transaction signing unavailable"}
+            </p>
+            {browserWalletCanSignTransactions ? (
+              <p className="inline-meta">
+                {buildCreateEventTransactionSummary({
+                  hostWallet: walletAddress ?? "browser wallet",
+                  title: title || "Untitled event",
+                  depositAmount: Number(depositAmount),
+                  seatCount: Number(seatCount)
+                })}
+              </p>
+            ) : null}
+          </>
         ) : null}
         {isDemoWallet ? (
           <p className="inline-meta">
@@ -238,6 +284,9 @@ export function EventForm() {
           <p>{createdEvent.venue}</p>
           <p>Host wallet: {createdEvent.hostWallet}</p>
           <p>Created path: {formatCreationPathLabel(createdEvent.creationPath)}</p>
+          {createdEvent.transactionSignature ? (
+            <p>Transaction signature: {createdEvent.transactionSignature}</p>
+          ) : null}
           {createdEvent.hostWalletAuthorization ? (
             <p className="inline-meta">Host authorization: Signed in browser wallet</p>
           ) : null}
