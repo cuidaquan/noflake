@@ -172,6 +172,26 @@ describe("backend api", () => {
     expect(response.body.message).toContain("Host wallet authorization is required");
   });
 
+  it("rejects browser-wallet event creation without authorization payload", async () => {
+    const app = buildServer();
+
+    const response = await request(app).post("/events").send({
+      title: "Unsigned Host Dinner",
+      hostWallet: "host-browser-2",
+      creationPath: "BROWSER_WALLET",
+      hostWalletAuthorization: "signed-host-proof",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("Host authorization payload is required");
+  });
+
   it("creates a sponsor event without requiring sponsor pool at event creation time", async () => {
     const app = buildServer();
 
@@ -244,6 +264,7 @@ describe("backend api", () => {
       .send({
         attendeeWallet: "wallet-browser-1",
         paymentPath: "BROWSER_WALLET",
+        walletAuthorizationMessage: `reserve:${createResponse.body.id}:wallet-browser-1`,
         walletAuthorization: "signed-intent-proof-1"
       });
 
@@ -318,6 +339,32 @@ describe("backend api", () => {
 
     expect(reserveResponse.status).toBe(400);
     expect(reserveResponse.body.message).toContain("Wallet authorization is required");
+  });
+
+  it("rejects browser-wallet reservations that do not include authorization payload", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Unsigned Browser Wallet Dinner",
+      hostWallet: "host",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    const reserveResponse = await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({
+        attendeeWallet: "wallet-browser-4",
+        paymentPath: "BROWSER_WALLET",
+        walletAuthorization: "signed-proof-only"
+      });
+
+    expect(reserveResponse.status).toBe(400);
+    expect(reserveResponse.body.message).toContain("Authorization payload is required");
   });
 
   it("runs sponsor settlement as settle -> prepare instead of one-pass completion", async () => {

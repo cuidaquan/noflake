@@ -73,6 +73,11 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (creationPath === "BROWSER_WALLET" && !hostAuthorizationMessage) {
+      res.status(400).json({ message: "Host authorization payload is required for browser wallet event creation" });
+      return;
+    }
+
     const event = eventService.createEvent({
       ...req.body,
       creationPath,
@@ -119,6 +124,11 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     if (paymentPath === "BROWSER_WALLET" && !walletAuthorization) {
       res.status(400).json({ message: "Wallet authorization is required for browser wallet reservations" });
+      return;
+    }
+
+    if (paymentPath === "BROWSER_WALLET" && !walletAuthorizationMessage) {
+      res.status(400).json({ message: "Authorization payload is required for browser wallet reservations" });
       return;
     }
 
