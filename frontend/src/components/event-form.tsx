@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatCreationPathLabel } from "../../../shared/src/constants";
 import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
 import { prepareCreateEventWalletIntent } from "../lib/wallet-intent";
 import { useWallet } from "./wallet-provider";
@@ -122,11 +123,11 @@ export function EventForm() {
           Host wallet path:{" "}
           {walletAddress
             ? isDemoWallet
-              ? "Demo backend host"
+              ? formatCreationPathLabel("DEMO_BACKEND")
               : "Browser wallet connected"
             : browserWalletAvailable
               ? "Browser wallet available"
-              : "Demo backend host"}
+              : formatCreationPathLabel("DEMO_BACKEND")}
         </p>
         {browserWalletAvailable && !browserWalletCanSign ? (
           <p className="inline-meta">
@@ -226,12 +227,7 @@ export function EventForm() {
           <h2>{createdEvent.title}</h2>
           <p>{createdEvent.venue}</p>
           <p>Host wallet: {createdEvent.hostWallet}</p>
-          <p>
-            Created path:{" "}
-            {createdEvent.creationPath === "BROWSER_WALLET"
-              ? "Browser wallet"
-              : "Demo backend host"}
-          </p>
+          <p>Created path: {formatCreationPathLabel(createdEvent.creationPath)}</p>
           {createdEvent.hostWalletAuthorization ? (
             <p className="inline-meta">Host authorization: Signed in browser wallet</p>
           ) : null}

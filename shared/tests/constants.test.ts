@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCreateEventAuthorizationMessage,
   buildReservationAuthorizationMessage,
+  formatCreationPathLabel,
   HOST_EVENT_SUBMISSION_STATUS,
   formatPaymentPathLabel,
   RESERVATION_SUBMISSION_STATUS
@@ -30,5 +31,11 @@ describe("shared constants", () => {
     expect(formatPaymentPathLabel("BROWSER_WALLET")).toBe("Browser wallet");
     expect(formatPaymentPathLabel("DEMO_BACKEND")).toBe("Demo backend reservation");
     expect(formatPaymentPathLabel(undefined)).toBe("Demo backend reservation");
+  });
+
+  it("formats creation path labels consistently", () => {
+    expect(formatCreationPathLabel("BROWSER_WALLET")).toBe("Browser wallet");
+    expect(formatCreationPathLabel("DEMO_BACKEND")).toBe("Demo backend host");
+    expect(formatCreationPathLabel(undefined)).toBe("Demo backend host");
   });
 });

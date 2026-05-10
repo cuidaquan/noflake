@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useRef, useState } from "react";
-import { formatPaymentPathLabel } from "../../../../../shared/src/constants";
+import { formatCreationPathLabel, formatPaymentPathLabel } from "../../../../../shared/src/constants";
 import {
   cancelEvent,
   checkInAttendee,
@@ -202,10 +202,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           <section className="panel">
             <p className="eyebrow">HOST PROVENANCE</p>
             <p>Host wallet: {event.hostWallet}</p>
-            <p>
-              Host wallet path:{" "}
-              {event.creationPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend host"}
-            </p>
+            <p>Host wallet path: {formatCreationPathLabel(event.creationPath)}</p>
             {event.hostWalletAuthorization ? (
               <p>Host authorization: Signed in browser wallet</p>
             ) : null}

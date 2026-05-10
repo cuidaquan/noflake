@@ -22,3 +22,7 @@ export function buildCreateEventAuthorizationMessage(hostWallet: string, title: 
 export function formatPaymentPathLabel(paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET") {
   return paymentPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend reservation";
 }
+
+export function formatCreationPathLabel(creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET") {
+  return creationPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend host";
+}

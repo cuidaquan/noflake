@@ -1,7 +1,7 @@
 import { ReservationCard } from "../../../components/reservation-card";
 import { resolveApiBaseUrl } from "../../../lib/api-base-url";
 import { getReservations } from "../../../lib/api";
-import { formatPaymentPathLabel } from "../../../../../shared/src/constants";
+import { formatCreationPathLabel, formatPaymentPathLabel } from "../../../../../shared/src/constants";
 
 const API_BASE_URL = resolveApiBaseUrl(process.env.NOAFLAKE_API_BASE_URL);
 
@@ -46,12 +46,7 @@ export default async function EventPage({ params }: EventPageProps) {
         <p>{event.venue}</p>
         <p>Deposit: {event.depositAmount} USDC</p>
         <p>Host wallet: {event.hostWallet}</p>
-        <p>
-          Host wallet path:{" "}
-          {event.creationPath === "BROWSER_WALLET"
-            ? "Browser wallet"
-            : "Demo backend host"}
-        </p>
+        <p>Host wallet path: {formatCreationPathLabel(event.creationPath)}</p>
         {event.hostWalletAuthorization ? (
           <p>Host authorization: Signed in browser wallet</p>
         ) : null}
