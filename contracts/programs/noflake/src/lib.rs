@@ -42,6 +42,11 @@ pub mod noflake {
         event.party_bonus_per_attendee = 0;
         event.party_bonus_prepared = false;
         event.party_bonus_claimed_count = 0;
+        event.sponsor = None;
+        event.sponsor_bonus_per_attendee = 0;
+        event.sponsor_distribution_prepared = false;
+        event.sponsor_bonus_claimed_count = 0;
+        event.sponsor_vault_authority_bump = ctx.bumps.sponsor_vault_authority;
         event.vault_authority_bump = ctx.bumps.vault_authority;
         event.bump = ctx.bumps.event;
         Ok(())
@@ -513,6 +518,40 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn fund_sponsor_pool(ctx: Context<FundSponsorPool>, amount: u64) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+
+        require!(
+            event.settlement_mode == SettlementMode::Sponsor,
+            NoflakeError::SponsorDistributionUnavailable
+        );
+
+        if let Some(existing_sponsor) = event.sponsor {
+            require!(
+                existing_sponsor == ctx.accounts.sponsor.key(),
+                NoflakeError::SponsorMismatch
+            );
+        } else {
+            event.sponsor = Some(ctx.accounts.sponsor.key());
+        }
+
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.sponsor_source_token.to_account_info(),
+                    mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                    to: ctx.accounts.sponsor_vault_token.to_account_info(),
+                    authority: ctx.accounts.sponsor.to_account_info(),
+                },
+            ),
+            amount,
+            ctx.accounts.deposit_mint_account.decimals,
+        )?;
+
+        Ok(())
+    }
+
     pub fn finalize_event(ctx: Context<FinalizeEvent>) -> Result<()> {
         let event = &mut ctx.accounts.event;
 
@@ -564,6 +603,12 @@ pub struct InitializeEvent<'info> {
         bump
     )]
     pub vault_authority: UncheckedAccount<'info>,
+    /// CHECK: PDA used as the canonical sponsor vault authority for this event.
+    #[account(
+        seeds = [b"sponsor-vault", event.key().as_ref()],
+        bump
+    )]
+    pub sponsor_vault_authority: UncheckedAccount<'info>,
     pub deposit_mint_account: InterfaceAccount<'info, Mint>,
     #[account(
         init,
@@ -793,6 +838,43 @@ pub struct ClaimPartyBonus<'info> {
 }
 
 #[derive(Accounts)]
+pub struct FundSponsorPool<'info> {
+    #[account(mut)]
+    pub sponsor: Signer<'info>,
+    #[account(mut)]
+    pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical sponsor vault authority for this event.
+    #[account(
+        seeds = [b"sponsor-vault", event.key().as_ref()],
+        bump = event.sponsor_vault_authority_bump
+    )]
+    pub sponsor_vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = sponsor,
+        associated_token::token_program = token_program,
+    )]
+    pub sponsor_source_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = sponsor,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = sponsor_vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub sponsor_vault_token: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct FinalizeEvent<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
@@ -823,6 +905,11 @@ pub struct EventAccount {
     pub party_bonus_per_attendee: u64,
     pub party_bonus_prepared: bool,
     pub party_bonus_claimed_count: u16,
+    pub sponsor: Option<Pubkey>,
+    pub sponsor_bonus_per_attendee: u64,
+    pub sponsor_distribution_prepared: bool,
+    pub sponsor_bonus_claimed_count: u16,
+    pub sponsor_vault_authority_bump: u8,
     pub vault_authority_bump: u8,
     pub bump: u8,
 }
@@ -910,4 +997,8 @@ pub enum NoflakeError {
     PartyBonusIneligible,
     #[msg("Party bonus has already been claimed.")]
     PartyBonusAlreadyClaimed,
+    #[msg("Sponsor distribution is not available for this event.")]
+    SponsorDistributionUnavailable,
+    #[msg("Sponsor does not match the event sponsor.")]
+    SponsorMismatch,
 }

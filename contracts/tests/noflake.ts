@@ -19,6 +19,7 @@ describe("noflake", () => {
   const program = anchor.workspace.noflake as Program<Noflake>;
   const strictMode = { strict: {} };
   const partyMode = { party: {} };
+  const sponsorMode = { sponsor: {} };
   const eventFundingConfig = new Map<
     string,
     {
@@ -26,6 +27,15 @@ describe("noflake", () => {
       mintAuthority: anchor.web3.Keypair;
       eventVaultAta: anchor.web3.PublicKey;
       vaultAuthorityPda: anchor.web3.PublicKey;
+    }
+  >();
+  const sponsorFundingConfig = new Map<
+    string,
+    {
+      sponsorVaultAta: anchor.web3.PublicKey;
+      sponsorVaultAuthorityPda: anchor.web3.PublicKey;
+      sponsorSourceAta: anchor.web3.PublicKey;
+      sponsorMintAuthority: anchor.web3.Keypair;
     }
   >();
 
@@ -223,6 +233,16 @@ describe("noflake", () => {
     }
 
     return fundingConfig;
+  };
+
+  const getSponsorFundingConfig = (eventPda: anchor.web3.PublicKey) => {
+    const config = sponsorFundingConfig.get(eventPda.toBase58());
+
+    if (!config) {
+      throw new Error(`missing sponsor funding config for event ${eventPda.toBase58()}`);
+    }
+
+    return config;
   };
 
   const getAttendeeDepositAta = (
@@ -575,6 +595,101 @@ describe("noflake", () => {
     });
 
     await sendTransaction(transaction, attendee);
+  };
+
+  const setupSponsorFunding = async ({
+    sponsor,
+    eventPda,
+    amount,
+  }: {
+    sponsor: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    amount: bigint;
+  }) => {
+    await airdrop(sponsor.publicKey);
+    const fundingConfig = getFundingConfig(eventPda);
+    const sponsorSourceAta = await createAta(
+      sponsor,
+      fundingConfig.depositMint,
+      sponsor.publicKey
+    );
+    const sponsorSourceBalance = await getTokenBalance(sponsorSourceAta);
+    if (sponsorSourceBalance < amount) {
+      await mintToAta({
+        authority: fundingConfig.mintAuthority,
+        mint: fundingConfig.depositMint,
+        destination: sponsorSourceAta,
+        amount: amount - sponsorSourceBalance,
+      });
+    }
+
+    const [sponsorVaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("sponsor-vault"), eventPda.toBuffer()],
+      program.programId
+    );
+    const sponsorVaultAta = getAssociatedTokenAddressSync(
+      fundingConfig.depositMint,
+      sponsorVaultAuthorityPda,
+      true
+    );
+
+    sponsorFundingConfig.set(eventPda.toBase58(), {
+      sponsorVaultAta,
+      sponsorVaultAuthorityPda,
+      sponsorSourceAta,
+      sponsorMintAuthority: fundingConfig.mintAuthority,
+    });
+
+    return {
+      sponsorSourceAta,
+      sponsorVaultAta,
+      sponsorVaultAuthorityPda,
+    };
+  };
+
+  const buildFundSponsorPoolTransaction = async ({
+    sponsor,
+    eventPda,
+    amount,
+  }: {
+    sponsor: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    amount: bigint;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const sponsorConfig = getSponsorFundingConfig(eventPda);
+
+    return program.methods
+      .fundSponsorPool(new anchor.BN(amount.toString()))
+      .accountsPartial({
+        sponsor: sponsor.publicKey,
+        event: eventPda,
+        sponsorVaultAuthority: sponsorConfig.sponsorVaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        sponsorSourceToken: sponsorConfig.sponsorSourceAta,
+        sponsorVaultToken: sponsorConfig.sponsorVaultAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
+  const fundSponsorPool = async ({
+    sponsor,
+    eventPda,
+    amount,
+  }: {
+    sponsor: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+    amount: bigint;
+  }) => {
+    const transaction = await buildFundSponsorPoolTransaction({
+      sponsor,
+      eventPda,
+      amount,
+    });
+
+    await sendTransaction(transaction, sponsor);
   };
 
   const undoCheckIn = async ({
@@ -1666,6 +1781,116 @@ describe("noflake", () => {
     expect(event.partyBonusPrepared).to.equal(true);
     expect(event.partyBonusClaimedCount).to.equal(2);
     expect(vaultBalanceAfterFinalize).to.equal(0n);
+  });
+
+  it("funds a sponsor pool into the sponsor vault", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const sponsorConfig = await setupSponsorFunding({
+      sponsor,
+      eventPda,
+      amount: 900_000_000n,
+    });
+
+    const sponsorBalanceBeforeFunding = await getTokenBalance(
+      sponsorConfig.sponsorSourceAta
+    );
+
+    await fundSponsorPool({
+      sponsor,
+      eventPda,
+      amount: 900_000_000n,
+    });
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const sponsorBalanceAfterFunding = await getTokenBalance(
+      sponsorConfig.sponsorSourceAta
+    );
+    const sponsorVaultBalance = await getTokenBalance(
+      sponsorConfig.sponsorVaultAta
+    );
+
+    expect(event.sponsor?.toBase58()).to.equal(sponsor.publicKey.toBase58());
+    expect(sponsorBalanceBeforeFunding - sponsorBalanceAfterFunding).to.equal(900_000_000n);
+    expect(sponsorVaultBalance).to.equal(900_000_000n);
+  });
+
+  it("does not allow funding a sponsor pool for a non-sponsor event", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const sponsor = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: strictMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    await setupSponsorFunding({
+      sponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+
+    const fundTransaction = await buildFundSponsorPoolTransaction({
+      sponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+
+    await expectAnchorError(
+      sendTransaction(fundTransaction, sponsor),
+      "SponsorDistributionUnavailable"
+    );
+  });
+
+  it("does not allow switching sponsors for the same event", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const firstSponsor = anchor.web3.Keypair.generate();
+    const secondSponsor = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: sponsorMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    await setupSponsorFunding({
+      sponsor: firstSponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+    await fundSponsorPool({
+      sponsor: firstSponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+
+    await setupSponsorFunding({
+      sponsor: secondSponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+
+    const secondFundTransaction = await buildFundSponsorPoolTransaction({
+      sponsor: secondSponsor,
+      eventPda,
+      amount: 500_000_000n,
+    });
+
+    await expectAnchorError(
+      sendTransaction(secondFundTransaction, secondSponsor),
+      "SponsorMismatch"
+    );
   });
 
   it("rejects settling a waitlisted reservation", async () => {
