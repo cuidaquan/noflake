@@ -8,6 +8,7 @@ describe("WalletIntentPreview", () => {
     const html = renderToStaticMarkup(
       <WalletIntentPreview
         label="Wallet intent"
+        authorizationMessage="reserve:evt_1:wallet-1"
         preflight={{
           action: "reserve",
           subject: "evt_1",
@@ -18,6 +19,7 @@ describe("WalletIntentPreview", () => {
     );
 
     expect(html).toContain("Wallet intent: Reserve a seat for evt_1 with wallet-1");
+    expect(html).toContain("Authorization payload: reserve:evt_1:wallet-1");
     expect(html).toContain("Intent action: reserve");
     expect(html).toContain("Intent target: evt_1");
     expect(html).toContain("Settlement token: USDC");

@@ -105,7 +105,11 @@ export function EventForm() {
     <div className="flow-grid">
       <form className="panel" onSubmit={handleSubmit}>
         {walletIntent ? (
-          <WalletIntentPreview label="Host wallet intent" preflight={walletIntent.preflight} />
+          <WalletIntentPreview
+            label="Host wallet intent"
+            authorizationMessage={walletIntent.authorizationMessage}
+            preflight={walletIntent.preflight}
+          />
         ) : null}
         <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
         <p className="inline-meta">

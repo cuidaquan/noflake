@@ -189,7 +189,11 @@ export function ReservationCard({
   return (
     <section className="panel">
       {walletIntent ? (
-        <WalletIntentPreview label="Wallet intent" preflight={walletIntent.preflight} />
+        <WalletIntentPreview
+          label="Wallet intent"
+          authorizationMessage={walletIntent.authorizationMessage}
+          preflight={walletIntent.preflight}
+        />
       ) : null}
       <p className="eyebrow">ATTENDEE FLOW</p>
       <h1>{title}</h1>
