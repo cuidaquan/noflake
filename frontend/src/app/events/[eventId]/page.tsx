@@ -1,7 +1,8 @@
 import { ReservationCard } from "../../../components/reservation-card";
+import { resolveApiBaseUrl } from "../../../lib/api-base-url";
 import { getReservations } from "../../../lib/api";
 
-const API_BASE_URL = process.env.NOAFLAKE_API_BASE_URL ?? "http://127.0.0.1:4000";
+const API_BASE_URL = resolveApiBaseUrl(process.env.NOAFLAKE_API_BASE_URL);
 
 type EventPageProps = {
   params: Promise<{
