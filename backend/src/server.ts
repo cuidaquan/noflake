@@ -59,6 +59,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events", (req, res) => {
     const creationPath =
       req.body.creationPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const transactionSignature =
+      typeof req.body.transactionSignature === "string" ? req.body.transactionSignature : undefined;
     const hostAuthorizationMessage =
       typeof req.body.hostAuthorizationMessage === "string"
         ? req.body.hostAuthorizationMessage
@@ -78,9 +80,15 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (creationPath === "BROWSER_WALLET" && !transactionSignature) {
+      res.status(400).json({ message: "Transaction signature is required for browser wallet event creation" });
+      return;
+    }
+
     const event = eventService.createEvent({
       ...req.body,
       creationPath,
+      transactionSignature,
       hostAuthorizationMessage,
       hostWalletAuthorization
     });
@@ -115,6 +123,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   app.post("/events/:eventId/reservations", (req, res) => {
     const paymentPath =
       req.body.paymentPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const transactionSignature =
+      typeof req.body.transactionSignature === "string" ? req.body.transactionSignature : undefined;
     const walletAuthorizationMessage =
       typeof req.body.walletAuthorizationMessage === "string"
         ? req.body.walletAuthorizationMessage
@@ -132,10 +142,16 @@ export function buildServer(options: BuildServerOptions = {}) {
       return;
     }
 
+    if (paymentPath === "BROWSER_WALLET" && !transactionSignature) {
+      res.status(400).json({ message: "Transaction signature is required for browser wallet reservations" });
+      return;
+    }
+
     const reservation = reservationService.reserveSeat(
       req.params.eventId,
       req.body.attendeeWallet ?? "demo-attendee-wallet",
       paymentPath,
+      transactionSignature,
       walletAuthorizationMessage,
       walletAuthorization
     );

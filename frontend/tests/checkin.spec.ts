@@ -39,6 +39,7 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
       title: "Wallet Provenance Dinner",
       hostWallet: "host-browser-1",
       creationPath: "BROWSER_WALLET",
+      transactionSignature: "host-checkin-signature-1",
       hostAuthorizationMessage: "create-event:host-browser-1:Wallet Provenance Dinner",
       hostWalletAuthorization: "signed-host-proof",
       venue: "Shanghai",
@@ -55,6 +56,7 @@ test("check-in console shows wallet provenance for browser-wallet reservations",
     data: {
       attendeeWallet: "wallet-browser-1",
       paymentPath: "BROWSER_WALLET",
+      transactionSignature: "reservation-checkin-signature-1",
       walletAuthorizationMessage: `reserve:${event.id}:wallet-browser-1`,
       walletAuthorization: "signed-intent-proof"
     }

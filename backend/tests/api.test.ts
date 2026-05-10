@@ -130,6 +130,7 @@ describe("backend api", () => {
       hostWallet: "host-browser-1",
       hostAuthorizationMessage: "create-event:host-browser-1:Signed Host Dinner",
       hostWalletAuthorization: "signed-host-proof",
+      transactionSignature: "host-tx-signature-1",
       creationPath: "BROWSER_WALLET",
       venue: "Shanghai",
       startTime: "2026-05-20T19:00:00.000Z",
@@ -145,12 +146,14 @@ describe("backend api", () => {
       "create-event:host-browser-1:Signed Host Dinner"
     );
     expect(response.body.hostWalletAuthorization).toBe("signed-host-proof");
+    expect(response.body.transactionSignature).toBe("host-tx-signature-1");
 
     const fetchResponse = await request(app).get(`/events/${response.body.id}`);
     expect(fetchResponse.status).toBe(200);
     expect(fetchResponse.body.hostAuthorizationMessage).toBe(
       "create-event:host-browser-1:Signed Host Dinner"
     );
+    expect(fetchResponse.body.transactionSignature).toBe("host-tx-signature-1");
   });
 
   it("rejects browser-wallet event creation without wallet authorization", async () => {
@@ -190,6 +193,27 @@ describe("backend api", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain("Host authorization payload is required");
+  });
+
+  it("rejects browser-wallet event creation without transaction signature", async () => {
+    const app = buildServer();
+
+    const response = await request(app).post("/events").send({
+      title: "Unsigned Host Dinner",
+      hostWallet: "host-browser-3",
+      creationPath: "BROWSER_WALLET",
+      hostAuthorizationMessage: "create-event:host-browser-3:Unsigned Host Dinner",
+      hostWalletAuthorization: "signed-host-proof",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("Transaction signature is required");
   });
 
   it("creates a sponsor event without requiring sponsor pool at event creation time", async () => {
@@ -265,17 +289,20 @@ describe("backend api", () => {
         attendeeWallet: "wallet-browser-1",
         paymentPath: "BROWSER_WALLET",
         walletAuthorizationMessage: `reserve:${createResponse.body.id}:wallet-browser-1`,
-        walletAuthorization: "signed-intent-proof-1"
+        walletAuthorization: "signed-intent-proof-1",
+        transactionSignature: "reservation-tx-signature-1"
       });
 
     expect(reserveResponse.status).toBe(201);
     expect(reserveResponse.body.paymentPath).toBe("BROWSER_WALLET");
+    expect(reserveResponse.body.transactionSignature).toBe("reservation-tx-signature-1");
 
     const reservationsResponse = await request(app).get(
       `/events/${createResponse.body.id}/reservations`
     );
     expect(reservationsResponse.status).toBe(200);
     expect(reservationsResponse.body[0].paymentPath).toBe("BROWSER_WALLET");
+    expect(reservationsResponse.body[0].transactionSignature).toBe("reservation-tx-signature-1");
   });
 
   it("stores browser wallet authorization proof on browser-wallet reservations", async () => {
@@ -298,7 +325,8 @@ describe("backend api", () => {
         attendeeWallet: "wallet-browser-2",
         paymentPath: "BROWSER_WALLET",
         walletAuthorizationMessage: `reserve:${createResponse.body.id}:wallet-browser-2`,
-        walletAuthorization: "signed-intent-proof"
+        walletAuthorization: "signed-intent-proof",
+        transactionSignature: "reservation-tx-signature-2"
       });
 
     expect(reserveResponse.status).toBe(201);
@@ -306,6 +334,7 @@ describe("backend api", () => {
       `reserve:${createResponse.body.id}:wallet-browser-2`
     );
     expect(reserveResponse.body.walletAuthorization).toBe("signed-intent-proof");
+    expect(reserveResponse.body.transactionSignature).toBe("reservation-tx-signature-2");
 
     const reservationsResponse = await request(app).get(
       `/events/${createResponse.body.id}/reservations`
@@ -314,6 +343,7 @@ describe("backend api", () => {
       `reserve:${createResponse.body.id}:wallet-browser-2`
     );
     expect(reservationsResponse.body[0].walletAuthorization).toBe("signed-intent-proof");
+    expect(reservationsResponse.body[0].transactionSignature).toBe("reservation-tx-signature-2");
   });
 
   it("rejects browser-wallet reservations that do not include wallet authorization", async () => {
@@ -365,6 +395,33 @@ describe("backend api", () => {
 
     expect(reserveResponse.status).toBe(400);
     expect(reserveResponse.body.message).toContain("Authorization payload is required");
+  });
+
+  it("rejects browser-wallet reservations that do not include transaction signature", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Unsigned Browser Wallet Dinner",
+      hostWallet: "host",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    const reserveResponse = await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({
+        attendeeWallet: "wallet-browser-5",
+        paymentPath: "BROWSER_WALLET",
+        walletAuthorizationMessage: `reserve:${createResponse.body.id}:wallet-browser-5`,
+        walletAuthorization: "signed-proof-only"
+      });
+
+    expect(reserveResponse.status).toBe(400);
+    expect(reserveResponse.body.message).toContain("Transaction signature is required");
   });
 
   it("runs sponsor settlement as settle -> prepare instead of one-pass completion", async () => {

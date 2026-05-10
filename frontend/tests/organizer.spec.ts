@@ -41,6 +41,7 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await page.addInitScript(() => {
     let releaseCreateEvent: (() => void) | null = null;
     let releaseTransactionPreparation: (() => void) | null = null;
+    let createEventRequestBody: Record<string, unknown> | null = null;
     const originalFetch = window.fetch.bind(window);
 
     window.fetch = async (input, init) => {
@@ -52,6 +53,8 @@ test("organizer uses the browser wallet creation path when an injected wallet is
             : input.url;
 
       if (url.endsWith("/events") && init?.method === "POST") {
+        createEventRequestBody =
+          typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
         await new Promise<void>((resolve) => {
           releaseCreateEvent = resolve;
         });
@@ -83,7 +86,8 @@ test("organizer uses the browser wallet creation path when an injected wallet is
       configurable: true,
       value: {
         releaseTransactionPreparation: () => releaseTransactionPreparation?.(),
-        releaseCreateEvent: () => releaseCreateEvent?.()
+        releaseCreateEvent: () => releaseCreateEvent?.(),
+        getCreateEventRequestBody: () => createEventRequestBody
       }
     });
   });
@@ -133,6 +137,18 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await expect(page.getByText("Created path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
   await expect(page.getByText(/^Transaction signature: /)).toBeVisible();
+  const requestBody = await page.evaluate(() => {
+    return (
+      (
+        window as Window & {
+          __noflakeHostWalletPrepTest?: {
+            getCreateEventRequestBody: () => Record<string, unknown> | null;
+          };
+        }
+      ).__noflakeHostWalletPrepTest?.getCreateEventRequestBody() ?? null
+    );
+  });
+  expect(typeof requestBody?.transactionSignature).toBe("string");
   await expect(
     page.getByText("Host authorization payload: create-event:host-browser-1:Browser Host Dinner")
   ).toBeVisible();

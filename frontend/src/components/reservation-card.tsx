@@ -145,13 +145,11 @@ export function ReservationCard({
         eventId,
         walletAddress,
         isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
+        transactionSignature,
         walletAuthorization ? activeWalletIntent?.authorizationMessage : undefined,
         walletAuthorization ?? undefined
       );
-      setReservation({
-        ...payload,
-        transactionSignature
-      } as ReservationDetails & { transactionSignature?: string });
+      setReservation(payload);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Reservation failed");
     } finally {

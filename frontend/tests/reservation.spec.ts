@@ -32,6 +32,7 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await page.addInitScript(() => {
     let releaseTransactionPreparation: (() => void) | null = null;
     let releaseReservationRequest: (() => void) | null = null;
+    let reservationRequestBody: Record<string, unknown> | null = null;
     const originalFetch = window.fetch.bind(window);
 
     window.fetch = async (input, init) => {
@@ -43,6 +44,8 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
             : input.url;
 
       if (url.includes("/reservations") && init?.method === "POST") {
+        reservationRequestBody =
+          typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
         await new Promise<void>((resolve) => {
           releaseReservationRequest = resolve;
         });
@@ -74,7 +77,8 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
       configurable: true,
       value: {
         releaseTransactionPreparation: () => releaseTransactionPreparation?.(),
-        releaseReservationRequest: () => releaseReservationRequest?.()
+        releaseReservationRequest: () => releaseReservationRequest?.(),
+        getReservationRequestBody: () => reservationRequestBody
       }
     });
   });
@@ -124,6 +128,18 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();
   await expect(page.getByText("Wallet authorization: Signed in browser wallet")).toBeVisible();
   await expect(page.getByText(/^Transaction signature: /)).toBeVisible();
+  const requestBody = await page.evaluate(() => {
+    return (
+      (
+        window as Window & {
+          __noflakeWalletPrepTest?: {
+            getReservationRequestBody: () => Record<string, unknown> | null;
+          };
+        }
+      ).__noflakeWalletPrepTest?.getReservationRequestBody() ?? null
+    );
+  });
+  expect(typeof requestBody?.transactionSignature).toBe("string");
   await expect(
     page.getByText("Authorization payload: reserve:evt_1:wallet-browser-1")
   ).toHaveCount(2);
@@ -390,6 +406,7 @@ test("event detail page shows browser-wallet host provenance when the organizer 
       title: "Signed Host Details Dinner",
       hostWallet: "host-browser-1",
       creationPath: "BROWSER_WALLET",
+      transactionSignature: "host-details-signature-1",
       hostAuthorizationMessage: "create-event:host-browser-1:Signed Host Details Dinner",
       hostWalletAuthorization: "signed-host-proof",
       venue: "Shanghai",

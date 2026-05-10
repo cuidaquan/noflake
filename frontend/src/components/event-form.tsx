@@ -110,6 +110,7 @@ export function EventForm() {
         title,
         hostWallet: walletAddress ?? "demo-host-wallet",
         creationPath: isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
+        transactionSignature,
         hostAuthorizationMessage: hostWalletAuthorization
           ? activeWalletIntent?.authorizationMessage
           : undefined,
@@ -123,8 +124,7 @@ export function EventForm() {
       });
 
       setCreatedEvent({
-        ...response,
-        transactionSignature
+        ...response
       });
       setDashboard(await getEventDashboard(response.id));
     } catch (error) {

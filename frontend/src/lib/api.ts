@@ -6,6 +6,7 @@ export type CreateEventInput = {
   title: string;
   hostWallet: string;
   creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  transactionSignature?: string;
   hostAuthorizationMessage?: string;
   hostWalletAuthorization?: string;
   venue: string;
@@ -48,6 +49,7 @@ export type ReservationDetails = {
   eventId: string;
   attendeeWallet: string;
   paymentPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  transactionSignature?: string;
   walletAuthorizationMessage?: string;
   walletAuthorization?: string;
   status: string;
@@ -170,6 +172,7 @@ export async function reserveSeat(
   eventId: string,
   attendeeWallet: string,
   paymentPath: "DEMO_BACKEND" | "BROWSER_WALLET" = "DEMO_BACKEND",
+  transactionSignature?: string,
   walletAuthorizationMessage?: string,
   walletAuthorization?: string
 ): Promise<ReservationDetails> {
@@ -181,6 +184,7 @@ export async function reserveSeat(
     body: JSON.stringify({
       attendeeWallet,
       paymentPath,
+      transactionSignature,
       walletAuthorizationMessage,
       walletAuthorization
     })
