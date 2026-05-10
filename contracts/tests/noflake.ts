@@ -500,6 +500,34 @@ describe("noflake", () => {
     await sendTransaction(transaction, host);
   };
 
+  const buildPreparePartyDistributionTransaction = async ({
+    host,
+    eventPda,
+  }: {
+    host: anchor.web3.Keypair;
+    eventPda: anchor.web3.PublicKey;
+  }) => {
+    const fundingConfig = getFundingConfig(eventPda);
+    const hostDepositAta = await createAta(
+      host,
+      fundingConfig.depositMint,
+      host.publicKey
+    );
+
+    return program.methods
+      .preparePartyDistribution()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        vaultAuthority: fundingConfig.vaultAuthorityPda,
+        depositMintAccount: fundingConfig.depositMint,
+        eventVaultToken: fundingConfig.eventVaultAta,
+        hostDepositToken: hostDepositAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction();
+  };
+
   const undoCheckIn = async ({
     host,
     eventPda,
@@ -1141,6 +1169,139 @@ describe("noflake", () => {
     expect(enumVariant(settledReservation.status as Record<string, unknown>)).to.equal(
       "noShow"
     );
+  });
+
+  it("does not allow preparing party distribution before all reservations are settled", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 2,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInReservation = await reserveSeat(eventPda, attendeeOne);
+    await reserveSeat(eventPda, attendeeTwo);
+
+    const checkInTransaction = await program.methods
+      .checkIn()
+      .accountsPartial({
+        host: host.publicKey,
+        event: eventPda,
+        reservation: checkedInReservation,
+      })
+      .transaction();
+    await sendTransaction(checkInTransaction, host);
+
+    await settleReservation({
+      host,
+      eventPda,
+      reservationPda: checkedInReservation,
+    });
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+
+    await expectAnchorError(
+      sendTransaction(prepareTransaction, host),
+      "EventNotReadyToFinalize"
+    );
+  });
+
+  it("prepares party distribution and sends the remainder to the host", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendeeOne = anchor.web3.Keypair.generate();
+    const attendeeTwo = anchor.web3.Keypair.generate();
+    const attendeeThree = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 3,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const checkedInOneReservation = await reserveSeat(eventPda, attendeeOne);
+    const checkedInTwoReservation = await reserveSeat(eventPda, attendeeTwo);
+    const noShowReservation = await reserveSeat(eventPda, attendeeThree);
+    const fundingConfig = getFundingConfig(eventPda);
+    const hostDepositAta = await createAta(host, fundingConfig.depositMint, host.publicKey);
+
+    for (const reservationPda of [checkedInOneReservation, checkedInTwoReservation]) {
+      const checkInTransaction = await program.methods
+        .checkIn()
+        .accountsPartial({
+          host: host.publicKey,
+          event: eventPda,
+          reservation: reservationPda,
+        })
+        .transaction();
+      await sendTransaction(checkInTransaction, host);
+    }
+
+    await settleReservation({ host, eventPda, reservationPda: checkedInOneReservation });
+    await settleReservation({ host, eventPda, reservationPda: checkedInTwoReservation });
+    await settleReservation({ host, eventPda, reservationPda: noShowReservation });
+
+    const hostBalanceBeforePrepare = await getTokenBalance(hostDepositAta);
+    const vaultBalanceBeforePrepare = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const hostBalanceAfterPrepare = await getTokenBalance(hostDepositAta);
+    const vaultBalanceAfterPrepare = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(event.partyBonusPrepared).to.equal(true);
+    expect(event.partyBonusPerAttendee.toString()).to.equal("250000000");
+    expect(event.partyBonusClaimedCount).to.equal(0);
+    expect(hostBalanceAfterPrepare - hostBalanceBeforePrepare).to.equal(0n);
+    expect(vaultBalanceBeforePrepare).to.equal(500_000_000n);
+    expect(vaultBalanceAfterPrepare).to.equal(500_000_000n);
+  });
+
+  it("sends the full no-show pool to the host when nobody checked in", async () => {
+    const host = anchor.web3.Keypair.generate();
+    const attendee = anchor.web3.Keypair.generate();
+
+    const { eventPda } = await initializeEvent({
+      host,
+      seatCount: 1,
+      settlementMode: partyMode,
+      startTimeValue: 1_700_000_000,
+    });
+
+    const reservation = await reserveSeat(eventPda, attendee);
+    const fundingConfig = getFundingConfig(eventPda);
+    const hostDepositAta = await createAta(host, fundingConfig.depositMint, host.publicKey);
+
+    await settleReservation({ host, eventPda, reservationPda: reservation });
+
+    const hostBalanceBeforePrepare = await getTokenBalance(hostDepositAta);
+
+    const prepareTransaction = await buildPreparePartyDistributionTransaction({
+      host,
+      eventPda,
+    });
+    await sendTransaction(prepareTransaction, host);
+
+    const event = await program.account.eventAccount.fetch(eventPda);
+    const hostBalanceAfterPrepare = await getTokenBalance(hostDepositAta);
+    const vaultBalanceAfterPrepare = await getTokenBalance(fundingConfig.eventVaultAta);
+
+    expect(event.partyBonusPrepared).to.equal(true);
+    expect(event.partyBonusPerAttendee.toString()).to.equal("0");
+    expect(hostBalanceAfterPrepare - hostBalanceBeforePrepare).to.equal(500_000_000n);
+    expect(vaultBalanceAfterPrepare).to.equal(0n);
   });
 
   it("rejects settling a waitlisted reservation", async () => {

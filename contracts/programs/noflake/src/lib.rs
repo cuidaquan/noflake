@@ -39,6 +39,9 @@ pub mod noflake {
         event.settlement_mode = settlement_mode;
         event.deposit_mint = deposit_mint;
         event.status = EventStatus::Open;
+        event.party_bonus_per_attendee = 0;
+        event.party_bonus_prepared = false;
+        event.party_bonus_claimed_count = 0;
         event.vault_authority_bump = ctx.bumps.vault_authority;
         event.bump = ctx.bumps.event;
         Ok(())
@@ -102,8 +105,12 @@ pub mod noflake {
         require!(
             matches!(
                 event.status,
-                EventStatus::Open | EventStatus::Full
+                EventStatus::Open | EventStatus::Full | EventStatus::InProgress
             ),
+            NoflakeError::EventCheckInClosed
+        );
+        require!(
+            event.settled_count == 0,
             NoflakeError::EventCheckInClosed
         );
 
@@ -124,6 +131,10 @@ pub mod noflake {
 
         require!(
             matches!(event.status, EventStatus::Open | EventStatus::Full | EventStatus::InProgress),
+            NoflakeError::EventCheckInClosed
+        );
+        require!(
+            event.settled_count == 0,
             NoflakeError::EventCheckInClosed
         );
         require!(
@@ -390,6 +401,66 @@ pub mod noflake {
         Ok(())
     }
 
+    pub fn prepare_party_distribution(ctx: Context<PreparePartyDistribution>) -> Result<()> {
+        let event = &mut ctx.accounts.event;
+
+        require!(
+            event.settlement_mode == SettlementMode::Party,
+            NoflakeError::PartyDistributionUnavailable
+        );
+        require!(
+            event.status == EventStatus::Settling && event.active_count == 0,
+            NoflakeError::EventNotReadyToFinalize
+        );
+        require!(
+            !event.party_bonus_prepared,
+            NoflakeError::PartyDistributionAlreadyPrepared
+        );
+
+        let pool_amount = ctx.accounts.event_vault_token.amount;
+        let checked_in_count = u64::from(event.checked_in_count);
+        let bonus_per_attendee = if checked_in_count == 0 {
+            0
+        } else {
+            pool_amount / checked_in_count
+        };
+        let remainder = if checked_in_count == 0 {
+            pool_amount
+        } else {
+            pool_amount % checked_in_count
+        };
+
+        if remainder > 0 {
+            let event_key = event.key();
+            let vault_bump_seed = [event.vault_authority_bump];
+            let vault_signer_seeds = &[&[
+                b"vault",
+                event_key.as_ref(),
+                &vault_bump_seed,
+            ][..]];
+
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.event_vault_token.to_account_info(),
+                        mint: ctx.accounts.deposit_mint_account.to_account_info(),
+                        to: ctx.accounts.host_deposit_token.to_account_info(),
+                        authority: ctx.accounts.vault_authority.to_account_info(),
+                    },
+                    vault_signer_seeds,
+                ),
+                remainder,
+                ctx.accounts.deposit_mint_account.decimals,
+            )?;
+        }
+
+        event.party_bonus_per_attendee = bonus_per_attendee;
+        event.party_bonus_prepared = true;
+        event.party_bonus_claimed_count = 0;
+        Ok(())
+    }
+
     pub fn finalize_event(ctx: Context<FinalizeEvent>) -> Result<()> {
         let event = &mut ctx.accounts.event;
 
@@ -591,6 +662,39 @@ pub struct CancelEvent<'info> {
 }
 
 #[derive(Accounts)]
+pub struct PreparePartyDistribution<'info> {
+    pub host: Signer<'info>,
+    #[account(mut, has_one = host)]
+    pub event: Account<'info, EventAccount>,
+    /// CHECK: PDA used as the canonical vault authority for this event.
+    #[account(
+        seeds = [b"vault", event.key().as_ref()],
+        bump = event.vault_authority_bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(
+        mint::token_program = token_program,
+        address = event.deposit_mint
+    )]
+    pub deposit_mint_account: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = vault_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub event_vault_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = deposit_mint_account,
+        associated_token::authority = host,
+        associated_token::token_program = token_program,
+    )]
+    pub host_deposit_token: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 pub struct FinalizeEvent<'info> {
     pub host: Signer<'info>,
     #[account(mut, has_one = host)]
@@ -618,6 +722,9 @@ pub struct EventAccount {
     pub next_waitlist_order: u64,
     pub next_waitlist_to_promote: u64,
     pub status: EventStatus,
+    pub party_bonus_per_attendee: u64,
+    pub party_bonus_prepared: bool,
+    pub party_bonus_claimed_count: u16,
     pub vault_authority_bump: u8,
     pub bump: u8,
 }
@@ -694,4 +801,8 @@ pub enum NoflakeError {
     EventNotReadyToFinalize,
     #[msg("Provided deposit mint does not match the event configuration.")]
     InvalidDepositMint,
+    #[msg("Party distribution is not available for this event.")]
+    PartyDistributionUnavailable,
+    #[msg("Party distribution has already been prepared.")]
+    PartyDistributionAlreadyPrepared,
 }
