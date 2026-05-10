@@ -40,6 +40,9 @@ test("organizer uses the browser wallet creation path when an injected wallet is
   await expect(
     page.getByText("Host wallet intent: Create event Browser Host Dinner with host-browser-1")
   ).toBeVisible();
+  await expect(page.getByText("Intent action: create-event")).toBeVisible();
+  await expect(page.getByText("Intent target: Browser Host Dinner")).toBeVisible();
+  await expect(page.getByText("Settlement token: USDC")).toBeVisible();
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");
   await page.getByRole("button", { name: "Create Event" }).click();

@@ -42,6 +42,9 @@ test("attendee uses the browser wallet reservation path when an injected wallet 
   await expect(
     page.getByText("Wallet intent: Reserve a seat for evt_1 with wallet-browser-1")
   ).toBeVisible();
+  await expect(page.getByText("Intent action: reserve")).toBeVisible();
+  await expect(page.getByText("Intent target: evt_1")).toBeVisible();
+  await expect(page.getByText("Settlement token: USDC")).toBeVisible();
   await expect(page.getByText("Payment path: Browser wallet connected")).toBeVisible();
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
   await expect(page.getByText("Reservation path: Browser wallet")).toBeVisible();

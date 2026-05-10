@@ -188,9 +188,12 @@ export function ReservationCard({
   return (
     <section className="panel">
       {walletIntent ? (
-        <p className="inline-meta">
-          Wallet intent: {walletIntent.preflight.summary}
-        </p>
+        <>
+          <p className="inline-meta">Wallet intent: {walletIntent.preflight.summary}</p>
+          <p className="inline-meta">Intent action: {walletIntent.preflight.action}</p>
+          <p className="inline-meta">Intent target: {walletIntent.preflight.subject}</p>
+          <p className="inline-meta">Settlement token: {walletIntent.preflight.paymentToken}</p>
+        </>
       ) : null}
       <p className="eyebrow">ATTENDEE FLOW</p>
       <h1>{title}</h1>
