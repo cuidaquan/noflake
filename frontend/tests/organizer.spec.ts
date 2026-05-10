@@ -15,6 +15,20 @@ test("organizer can create an event", async ({ page }) => {
   await expect(page.getByText("Created path: Demo backend host")).toBeVisible();
 });
 
+test("organizer can reset demo wallet selection back to the default fallback host", async ({ page }) => {
+  await page.goto("/organizer");
+  await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected host wallet: wallet-demo-1")).toBeVisible();
+  await page.getByLabel("Host demo wallet").selectOption("");
+  await expect(page.getByText("Connected host wallet: demo-host-wallet")).toBeVisible();
+  await page.getByLabel("Title").fill("Reset Host Dinner");
+  await page.getByLabel("Venue").fill("Shanghai");
+  await page.getByLabel("Deposit Amount").fill("20");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page.getByText(/^Host wallet: demo-host-wallet$/)).toBeVisible();
+  await expect(page.getByText("Created path: Demo backend host")).toBeVisible();
+});
+
 test("organizer uses the browser wallet creation path when an injected wallet is available", async ({
   page
 }) => {
@@ -239,7 +253,8 @@ test("organizer can switch back to browser wallet after choosing demo fallback",
   await page.goto("/organizer");
   await expect(page.getByLabel("Host demo wallet")).toBeVisible();
   await page.getByLabel("Host demo wallet").selectOption("wallet-demo-1");
-  await expect(page.getByText("Connected host wallet: wallet-demo-1")).toBeVisible();
+  await expect(page.getByLabel("Host demo wallet")).toHaveValue("wallet-demo-1");
+  await expect(page.getByText("Host wallet path: Demo backend host")).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect host wallet" })).toBeEnabled();
   await page.getByRole("button", { name: "Connect host wallet" }).click();
   await expect(page.getByText("Connected host wallet: host-browser-return")).toBeVisible();

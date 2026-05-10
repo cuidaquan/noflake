@@ -14,6 +14,18 @@ test("attendee can reserve a seat", async ({ page }) => {
   await expect(page.getByText(/\/check-in\/evt_1\?attendeeWallet=wallet-demo-1/)).toBeVisible();
 });
 
+test("attendee can reset demo wallet selection back to the unconnected fallback state", async ({
+  page
+}) => {
+  await page.goto("/events/evt_1");
+  await page.getByLabel("Demo wallet").selectOption("wallet-demo-1");
+  await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
+  await page.getByLabel("Demo wallet").selectOption("");
+  await expect(page.getByText("Connect wallet to reserve your seat")).toBeVisible();
+  await expect(page.getByText("Payment path: Demo backend reservation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reserve with USDC" })).toBeDisabled();
+});
+
 test("attendee uses the browser wallet reservation path when an injected wallet is available", async ({
   page
 }) => {

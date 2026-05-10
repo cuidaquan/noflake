@@ -80,7 +80,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           return signWalletAuthorization(message);
         },
         selectDemoWallet(nextWalletAddress) {
-          setWalletAddress(nextWalletAddress);
+          setWalletAddress(nextWalletAddress || null);
           setIsDemoWallet(true);
         }
       }}
