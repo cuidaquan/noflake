@@ -45,6 +45,13 @@ export default async function EventPage({ params }: EventPageProps) {
         <p>{event.venue}</p>
         <p>Deposit: {event.depositAmount} USDC</p>
         <p>Host wallet: {event.hostWallet}</p>
+        <p>
+          Host wallet path:{" "}
+          {event.creationPath === "BROWSER_WALLET" ? "Browser wallet" : "Demo backend host"}
+        </p>
+        {event.hostWalletAuthorization ? (
+          <p>Host authorization: Signed in browser wallet</p>
+        ) : null}
         <p>Settlement mode: {event.settlementMode}</p>
         <p>Cutoff time: {event.cutoffTime}</p>
         <p>Seat capacity: {event.seatCount}</p>

@@ -107,6 +107,31 @@ test("attendee can inspect event details before reserving", async ({ page, reque
   await expect(page.getByText("Check-in rule: Organizer confirms attendance at the door.")).toBeVisible();
 });
 
+test("event detail page shows browser-wallet host provenance when the organizer used a signed wallet", async ({
+  page,
+  request
+}) => {
+  const createResponse = await request.post("http://127.0.0.1:4101/events", {
+    data: {
+      title: "Signed Host Details Dinner",
+      hostWallet: "host-browser-1",
+      creationPath: "BROWSER_WALLET",
+      hostWalletAuthorization: "signed-host-proof",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    }
+  });
+  const event = await createResponse.json();
+
+  await page.goto(`/events/${event.id}`);
+  await expect(page.getByText("Host wallet path: Browser wallet")).toBeVisible();
+  await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+});
+
 test("event detail page shows full capacity and active waitlist pressure", async ({
   page,
   request
