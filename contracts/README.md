@@ -18,6 +18,10 @@ Included today:
 - `settle_reservation`
 - `prepare_party_distribution`
 - `claim_party_bonus`
+- `fund_sponsor_pool`
+- `refund_cancelled_sponsor_pool`
+- `prepare_sponsor_distribution`
+- `claim_sponsor_bonus`
 - `finalize_event`
 - waitlist handling when an event is full
 - earliest-waitlist promotion after a cancellation
@@ -28,6 +32,7 @@ Included today:
 - local SPL token deposit transfer into the event vault on reservation
 - strict-mode refund / forfeiture settlement transfers
 - party-mode no-show pool retention, remainder payout, and attendee bonus claims
+- sponsor-mode single-sponsor pool funding, cancellation refund, remainder payout, and attendee bonus claims
 - cancelled-event refund settlement for reserved / checked-in / waitlisted reservations
 - event and reservation status guardrails
 
@@ -150,7 +155,7 @@ On machines with that toolchain, the run may still print a trailing `websocket e
 If you see:
 
 ```text
-29 passing
+41 passing
 ```
 
 the test run is successful.
@@ -261,6 +266,18 @@ noflake
   ✔ does not finalize a party event before distribution is prepared
   ✔ does not finalize a party event before all eligible attendees claim
   ✔ finalizes a party event after all eligible attendees claim
+  ✔ funds a sponsor pool into the sponsor vault
+  ✔ does not allow funding a sponsor pool for a non-sponsor event
+  ✔ does not allow switching sponsors for the same event
+  ✔ refunds the sponsor pool to the sponsor after sponsor event cancellation
+  ✔ settles sponsor mode deposits and leaves sponsor pool separate
+  ✔ does not allow preparing sponsor distribution before all reservations are settled
+  ✔ prepares sponsor distribution and returns the remainder to the sponsor
+  ✔ returns the full sponsor pool when nobody checked in
+  ✔ allows checked-in attendees to claim an equal sponsor bonus
+  ✔ does not allow no-shows to claim a sponsor bonus
+  ✔ does not finalize a sponsor event before sponsor distribution is prepared
+  ✔ finalizes a sponsor event after all eligible attendees claim
   ✔ rejects settling a waitlisted reservation
   ✔ requires settling before finalizing an event
   ✔ does not finalize before all reserved attendees are settled
@@ -268,5 +285,5 @@ noflake
   ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-29 passing
+41 passing
 ```
