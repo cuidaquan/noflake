@@ -1,8 +1,13 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server";
+import { resetInMemoryStore } from "../src/store/in-memory-store";
 
 describe("backend api", () => {
+  beforeEach(() => {
+    resetInMemoryStore();
+  });
+
   it("creates and fetches an event", async () => {
     const app = buildServer();
 
@@ -231,5 +236,49 @@ describe("backend api", () => {
       .send({ attendeeWallet: "wallet-sponsor-2" });
     expect(secondClaim.status).toBe(200);
     expect(secondClaim.body.event.distributionStatus).toBe("COMPLETED");
+  });
+
+  it("refunds sponsor pool and attendee reservations when a sponsor event is cancelled before finalize", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Sponsor Cancel Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "SPONSOR"
+    });
+
+    await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 30 });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-1" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-2" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/check-in`)
+      .send({ attendeeWallet: "wallet-1" });
+
+    const cancelResponse = await request(app).post(`/events/${createResponse.body.id}/cancel`);
+    expect(cancelResponse.status).toBe(200);
+    expect(cancelResponse.body.status).toBe("CANCELLED");
+
+    const eventAfterCancel = await request(app).get(`/events/${createResponse.body.id}`);
+    expect(eventAfterCancel.body.status).toBe("CANCELLED");
+
+    const reservationsAfterCancel = await request(app)
+      .get(`/events/${createResponse.body.id}/reservations`);
+    expect(reservationsAfterCancel.body.every((reservation: { status: string }) => reservation.status === "REFUNDED")).toBe(true);
+
+    const lateClaim = await request(app)
+      .post(`/events/${createResponse.body.id}/claim-sponsor-bonus`)
+      .send({ attendeeWallet: "wallet-1" });
+    expect(lateClaim.status).toBe(400);
   });
 });
