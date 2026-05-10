@@ -9,6 +9,13 @@ test("attendee can reserve a seat", async ({ page }) => {
   await expect(page.getByText("Reservation status: RESERVED")).toBeVisible();
 });
 
+test("attendee can inspect event details before reserving", async ({ page }) => {
+  await page.goto("/events/evt_1");
+  await expect(page.getByText("Settlement mode: STRICT")).toBeVisible();
+  await expect(page.getByText("Cutoff time: 2026-05-20T17:00:00.000Z")).toBeVisible();
+  await expect(page.getByText("Event status: OPEN")).toBeVisible();
+});
+
 test("attendee can cancel before cutoff", async ({ page }) => {
   await page.goto("/events/evt_cancel");
   await page.getByRole("button", { name: "Connect wallet" }).click();
