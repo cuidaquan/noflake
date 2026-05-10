@@ -7,7 +7,7 @@ This repository currently ships a demo-ready MVP with:
 
 - organizer event creation
 - attendee reservation with a mock wallet connect step
-- organizer check-in, undo, cancellation, and settlement flow
+- organizer check-in, undo, cancellation, and staged settlement flow
 - shared domain schemas across frontend and backend
 - an Anchor contract package for event lifecycle, waitlist, cancellation, settlement state, strict-mode deposit vault transfers, party-mode bonus distribution, and sponsor-mode bonus funding
 
@@ -21,8 +21,8 @@ MVP focus:
 - reservation cancellation with earliest-waitlist promotion
 - organizer check-in and undo
 - organizer event cancellation
-- sponsor-mode single-sponsor funding and attendee bonus flow
-- end-of-event automated settlement
+- sponsor-mode single-sponsor post-creation funding and attendee bonus flow
+- end-of-event staged settlement, prepare, and claim orchestration
 
 Out of scope for MVP:
 
@@ -41,10 +41,10 @@ Out of scope for MVP:
 
 ## Architecture (High-Level)
 
-1. `frontend` collects user actions (create event, reserve seat, check in).
-2. `contracts` stores event/reservation state and controls fund movement.
-3. `backend` orchestrates waitlist updates and settlement triggers.
-4. `shared` keeps request/response and domain models consistent.
+1. `frontend` collects user actions for the demo app.
+2. `backend` currently orchestrates the demo reservation, check-in, and staged settlement lifecycle.
+3. `contracts` implements the real onchain deposit, refund, forfeiture, and bonus semantics verified in local Anchor tests.
+4. `shared` keeps request/response and domain models consistent across the frontend and backend.
 
 ## Current Demo Flow
 
@@ -53,7 +53,13 @@ Out of scope for MVP:
 3. Reserve a seat with the refundable USDC deposit flow.
 4. Fill the last seat and explain that later attendees are waitlisted.
 5. Open `/check-in/evt_1` and check in attendees.
-6. Settle the event and show refund / forfeiture summary.
+6. Run settlement, then prepare party or sponsor distribution when the selected mode requires it.
+7. Show refund, forfeiture, and bonus outcomes from the staged flow.
+
+The demo boundary is intentional:
+
+- the web app still uses backend orchestration plus a mock wallet UX for speed of demoing
+- the Anchor package already verifies the real onchain funding, refund, forfeiture, and bonus-claim lifecycle on localnet
 
 ## Contract Status
 
@@ -248,7 +254,7 @@ That flow:
 If the output includes:
 
 ```text
-41 passing
+43 passing
 ```
 
 the contract test succeeded.

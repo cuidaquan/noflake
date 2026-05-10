@@ -155,7 +155,7 @@ On machines with that toolchain, the run may still print a trailing `websocket e
 If you see:
 
 ```text
-41 passing
+43 passing
 ```
 
 the test run is successful.
@@ -275,8 +275,10 @@ noflake
   ✔ prepares sponsor distribution and returns the remainder to the sponsor
   ✔ returns the full sponsor pool when nobody checked in
   ✔ allows checked-in attendees to claim an equal sponsor bonus
+  ✔ does not allow claiming a sponsor bonus twice
   ✔ does not allow no-shows to claim a sponsor bonus
   ✔ does not finalize a sponsor event before sponsor distribution is prepared
+  ✔ does not finalize a sponsor event before all eligible attendees claim
   ✔ finalizes a sponsor event after all eligible attendees claim
   ✔ rejects settling a waitlisted reservation
   ✔ requires settling before finalizing an event
@@ -285,5 +287,5 @@ noflake
   ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-41 passing
+43 passing
 ```
