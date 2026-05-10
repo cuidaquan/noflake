@@ -8,6 +8,7 @@ Included today:
 
 - event account model
 - reservation account model
+- event-scoped deposit mint and vault ATA
 - `initialize_event`
 - `reserve_seat`
 - `cancel_reservation`
@@ -22,13 +23,10 @@ Included today:
 - cutoff-gated reservation cancellation
 - host-side event cancellation state
 - strict / party / sponsor settlement mode state
+- local SPL token deposit transfer into the event vault on reservation
+- strict-mode refund / forfeiture settlement transfers
+- cancelled-event refund settlement for reserved / checked-in / waitlisted reservations
 - event and reservation status guardrails
-
-Planned follow-up:
-
-- deposit vault handling
-- settlement distribution
-- token transfer integration
 
 ## Toolchain
 
@@ -149,7 +147,7 @@ On machines with that toolchain, the run may still print a trailing `websocket e
 If you see:
 
 ```text
-14 passing
+19 passing
 ```
 
 the test run is successful.
@@ -238,6 +236,7 @@ The happy-path test result looks like:
 ```text
 noflake
   ✔ creates an event account
+  ✔ locks the attendee deposit in the event vault when reserving a seat
   ✔ allows the same host to create multiple events
   ✔ waitlists attendees after capacity is reached
   ✔ promotes the earliest waitlisted attendee after a cancellation
@@ -246,6 +245,7 @@ noflake
   ✔ does not allow cancelling a reservation after the cutoff time
   ✔ allows a host to undo a check-in before settlement starts
   ✔ allows a host to cancel an event before settlement and marks the event cancelled
+  ✔ refunds reserved, checked-in, and waitlisted reservations after event cancellation
   ✔ settles checked-in and no-show reservations in strict mode
   ✔ marks no-shows without forfeiture in party mode
   ✔ rejects settling a waitlisted reservation
@@ -255,5 +255,5 @@ noflake
   ✔ does not allow check-in after settlement has started
   ✔ prevents check-in after an event has been finalized
 
-17 passing
+19 passing
 ```
