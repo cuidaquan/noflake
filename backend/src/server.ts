@@ -57,6 +57,18 @@ export function buildServer(options: BuildServerOptions = {}) {
   }
 
   app.post("/events", (req, res) => {
+    const creationPath =
+      req.body.creationPath === "BROWSER_WALLET" ? "BROWSER_WALLET" : "DEMO_BACKEND";
+    const hostWalletAuthorization =
+      typeof req.body.hostWalletAuthorization === "string"
+        ? req.body.hostWalletAuthorization
+        : undefined;
+
+    if (creationPath === "BROWSER_WALLET" && !hostWalletAuthorization) {
+      res.status(400).json({ message: "Host wallet authorization is required for browser wallet event creation" });
+      return;
+    }
+
     const event = eventService.createEvent(req.body);
     persistStore();
     res.status(201).json(event);

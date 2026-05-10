@@ -14,6 +14,36 @@ test("organizer can create an event", async ({ page }) => {
   await expect(page.getByText(/^Host wallet: wallet-demo-1$/)).toBeVisible();
 });
 
+test("organizer uses the browser wallet creation path when an injected wallet is available", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const provider = {
+      publicKey: {
+        toBase58: () => "host-browser-1"
+      },
+      connect: async () => ({ publicKey: { toBase58: () => "host-browser-1" } }),
+      signMessage: async () => new Uint8Array([104, 111, 115, 116])
+    };
+
+    Object.defineProperty(window, "solana", {
+      configurable: true,
+      value: provider
+    });
+  });
+
+  await page.goto("/organizer");
+  await expect(page.getByText("Host wallet path: Browser wallet available")).toBeVisible();
+  await page.getByRole("button", { name: "Connect host wallet" }).click();
+  await expect(page.getByText("Connected host wallet: host-browser-1")).toBeVisible();
+  await page.getByLabel("Title").fill("Browser Host Dinner");
+  await page.getByLabel("Venue").fill("Shanghai");
+  await page.getByLabel("Deposit Amount").fill("20");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page.getByText(/^Host wallet: host-browser-1$/)).toBeVisible();
+  await expect(page.getByText("Host authorization: Signed in browser wallet")).toBeVisible();
+});
+
 test("organizer sees share link, QR payload, and dashboard counts after creating an event", async ({
   page
 }) => {

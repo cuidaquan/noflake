@@ -122,6 +122,46 @@ describe("backend api", () => {
     expect(response.body.counts.reserved).toBeTypeOf("number");
   });
 
+  it("stores browser wallet authorization proof on browser-wallet event creation", async () => {
+    const app = buildServer();
+
+    const response = await request(app).post("/events").send({
+      title: "Signed Host Dinner",
+      hostWallet: "host-browser-1",
+      hostWalletAuthorization: "signed-host-proof",
+      creationPath: "BROWSER_WALLET",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.creationPath).toBe("BROWSER_WALLET");
+    expect(response.body.hostWalletAuthorization).toBe("signed-host-proof");
+  });
+
+  it("rejects browser-wallet event creation without wallet authorization", async () => {
+    const app = buildServer();
+
+    const response = await request(app).post("/events").send({
+      title: "Unsigned Host Dinner",
+      hostWallet: "host-browser-2",
+      creationPath: "BROWSER_WALLET",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 20,
+      cutoffTime: "2026-05-20T17:00:00.000Z",
+      settlementMode: "STRICT"
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("Host wallet authorization is required");
+  });
+
   it("creates a sponsor event without requiring sponsor pool at event creation time", async () => {
     const app = buildServer();
 

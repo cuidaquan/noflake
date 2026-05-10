@@ -8,6 +8,8 @@ type CreatedEvent = {
   id: string;
   title: string;
   hostWallet: string;
+  creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostWalletAuthorization?: string;
   venue: string;
   depositAmount: number;
   seatCount: number;
@@ -15,7 +17,15 @@ type CreatedEvent = {
 };
 
 export function EventForm() {
-  const { walletAddress, demoWallets, selectDemoWallet, connectWallet } = useWallet();
+  const {
+    walletAddress,
+    isDemoWallet,
+    browserWalletAvailable,
+    demoWallets,
+    selectDemoWallet,
+    connectWallet,
+    createWalletAuthorization
+  } = useWallet();
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
   const [depositAmount, setDepositAmount] = useState("20");
@@ -33,9 +43,20 @@ export function EventForm() {
     setErrorMessage(null);
 
     try {
+      const hostWalletAuthorization =
+        !isDemoWallet && walletAddress
+          ? await createWalletAuthorization(`create-event:${walletAddress}:${title}`)
+          : undefined;
+
+      if (!isDemoWallet && !hostWalletAuthorization) {
+        throw new Error("Browser host wallet authorization is required before creating an event.");
+      }
+
       const response = await createEvent({
         title,
         hostWallet: walletAddress ?? "demo-host-wallet",
+        creationPath: isDemoWallet ? "DEMO_BACKEND" : "BROWSER_WALLET",
+        hostWalletAuthorization,
         venue,
         startTime: "2026-05-20T19:00:00.000Z",
         depositAmount: Number(depositAmount),
@@ -57,6 +78,16 @@ export function EventForm() {
     <div className="flow-grid">
       <form className="panel" onSubmit={handleSubmit}>
         <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
+        <p className="inline-meta">
+          Host wallet path:{" "}
+          {walletAddress
+            ? isDemoWallet
+              ? "Demo backend host"
+              : "Browser wallet connected"
+            : browserWalletAvailable
+              ? "Browser wallet available"
+              : "Demo backend host"}
+        </p>
         <label className="field">
           <span>Host demo wallet</span>
           <select
@@ -137,6 +168,9 @@ export function EventForm() {
           <h2>{createdEvent.title}</h2>
           <p>{createdEvent.venue}</p>
           <p>Host wallet: {createdEvent.hostWallet}</p>
+          {createdEvent.hostWalletAuthorization ? (
+            <p className="inline-meta">Host authorization: Signed in browser wallet</p>
+          ) : null}
           <p>{createdEvent.depositAmount} USDC deposit</p>
           <p>{createdEvent.seatCount} seats</p>
           <p>Mode: {createdEvent.settlementMode}</p>

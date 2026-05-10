@@ -5,6 +5,8 @@ const API_BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 export type CreateEventInput = {
   title: string;
   hostWallet: string;
+  creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostWalletAuthorization?: string;
   venue: string;
   startTime: string;
   depositAmount: number;

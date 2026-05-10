@@ -11,6 +11,8 @@ export type EventRecord = {
   id: string;
   title: string;
   hostWallet: string;
+  creationPath?: "DEMO_BACKEND" | "BROWSER_WALLET";
+  hostWalletAuthorization?: string;
   venue: string;
   startTime: string;
   depositAmount: number;
