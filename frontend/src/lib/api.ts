@@ -9,12 +9,15 @@ export type CreateEventInput = {
   seatCount: number;
   cutoffTime: string;
   settlementMode: "STRICT" | "PARTY" | "SPONSOR";
-  sponsorPoolAmount?: number;
 };
 
 export type EventDetails = CreateEventInput & {
   id: string;
-  status: "OPEN" | "SETTLED";
+  status: "OPEN" | "FULL" | "IN_PROGRESS" | "SETTLING" | "SETTLED" | "CANCELLED";
+  sponsorPoolFunded?: number;
+  partyBonusPerAttendee?: number;
+  sponsorBonusPerAttendee?: number;
+  distributionStatus?: "PENDING" | "PREPARED" | "CLAIM_IN_PROGRESS" | "COMPLETED";
 };
 
 export type EventDashboard = {
@@ -59,7 +62,7 @@ export type SettlementSummary = {
   partyBonusPerAttendee?: number;
   sponsorBonusPerAttendee?: number;
   totalReturnedToAttendees?: number;
-  distributionStatus: "COMPLETED" | "PENDING";
+  distributionStatus: "COMPLETED" | "PENDING" | "PREPARED" | "CLAIM_IN_PROGRESS";
 };
 
 export async function createEvent(input: CreateEventInput) {
@@ -197,6 +200,46 @@ export async function cancelReservation(
 
   if (!response.ok) {
     throw new Error(`Cancellation failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fundSponsorPool(eventId: string, amount: number): Promise<EventDetails> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/fund-sponsor-pool`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ amount })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fund sponsor pool: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function preparePartyDistribution(eventId: string): Promise<SettlementSummary> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/prepare-party-distribution`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to prepare party distribution: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function prepareSponsorDistribution(eventId: string): Promise<SettlementSummary> {
+  const response = await fetch(`${API_BASE_URL}/events/${eventId}/prepare-sponsor-distribution`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to prepare sponsor distribution: ${response.status}`);
   }
 
   return response.json();

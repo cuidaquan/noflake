@@ -6,7 +6,7 @@ test("attendee can reserve a seat", async ({ page }) => {
   await page.getByRole("button", { name: "Connect wallet" }).click();
   await expect(page.getByText("Connected: wallet-demo-1")).toBeVisible();
   await page.getByRole("button", { name: "Reserve with USDC" }).click();
-  await expect(page.getByText("Reservation confirmed")).toBeVisible();
+  await expect(page.getByText("Reservation status: RESERVED")).toBeVisible();
 });
 
 test("attendee can cancel before cutoff", async ({ page }) => {

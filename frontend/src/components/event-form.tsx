@@ -10,7 +10,6 @@ type CreatedEvent = {
   depositAmount: number;
   seatCount: number;
   settlementMode: "STRICT" | "PARTY" | "SPONSOR";
-  sponsorPoolAmount?: number;
 };
 
 export function EventForm() {
@@ -20,7 +19,6 @@ export function EventForm() {
   const [seatCount, setSeatCount] = useState("20");
   const [cutoffTime, setCutoffTime] = useState("2026-05-20T17:00:00.000Z");
   const [settlementMode, setSettlementMode] = useState<"STRICT" | "PARTY" | "SPONSOR">("STRICT");
-  const [sponsorPoolAmount, setSponsorPoolAmount] = useState("");
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [dashboard, setDashboard] = useState<EventDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,10 +30,6 @@ export function EventForm() {
     setErrorMessage(null);
 
     try {
-      if (settlementMode === "SPONSOR" && !sponsorPoolAmount) {
-        throw new Error("Sponsor pool is required for sponsor mode");
-      }
-
       const response = await createEvent({
         title,
         hostWallet: "demo-host-wallet",
@@ -44,8 +38,7 @@ export function EventForm() {
         depositAmount: Number(depositAmount),
         seatCount: Number(seatCount),
         cutoffTime,
-        settlementMode,
-        sponsorPoolAmount: sponsorPoolAmount ? Number(sponsorPoolAmount) : undefined
+        settlementMode
       });
 
       setCreatedEvent(response);
@@ -103,13 +96,9 @@ export function EventForm() {
         </label>
 
         {settlementMode === "SPONSOR" ? (
-          <label className="field">
-            <span>Sponsor Pool</span>
-            <input
-              value={sponsorPoolAmount}
-              onChange={(event) => setSponsorPoolAmount(event.target.value)}
-            />
-          </label>
+          <p className="inline-meta">
+            Sponsor funds the bonus pool after event creation in a separate step.
+          </p>
         ) : null}
 
         <button className="primary-action" type="submit" disabled={isSubmitting}>
@@ -127,7 +116,6 @@ export function EventForm() {
           <p>{createdEvent.depositAmount} USDC deposit</p>
           <p>{createdEvent.seatCount} seats</p>
           <p>Mode: {createdEvent.settlementMode}</p>
-          {createdEvent.sponsorPoolAmount ? <p>Sponsor pool: {createdEvent.sponsorPoolAmount} USDC</p> : null}
           <p>Share link: {dashboard?.shareUrl ?? `/events/${createdEvent.id}`}</p>
           <p>QR payload: {dashboard?.qrValue ?? `/events/${createdEvent.id}`}</p>
           <p>Reserved: {dashboard?.counts.reserved ?? 0}</p>

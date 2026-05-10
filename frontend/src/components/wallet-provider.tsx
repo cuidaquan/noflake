@@ -10,6 +10,7 @@ import { DEMO_WALLET_ADDRESS } from "../lib/wallet";
 
 type WalletContextValue = {
   walletAddress: string | null;
+  isDemoWallet: boolean;
   connectWallet: () => void;
 };
 
@@ -22,6 +23,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider
       value={{
         walletAddress,
+        isDemoWallet: true,
         connectWallet() {
           setWalletAddress(DEMO_WALLET_ADDRESS);
         }

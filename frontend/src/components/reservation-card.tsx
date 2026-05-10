@@ -21,7 +21,7 @@ export function ReservationCard({
   venue,
   depositAmount
 }: ReservationCardProps) {
-  const { walletAddress, connectWallet } = useWallet();
+  const { walletAddress, isDemoWallet, connectWallet } = useWallet();
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,6 +69,12 @@ export function ReservationCard({
       <p>{venue}</p>
       <p>{depositAmount} USDC refundable deposit</p>
       <p className="inline-meta">Full refund if you cancel before the cutoff time.</p>
+      {isDemoWallet ? (
+        <p className="inline-meta">
+          Demo flow: wallet connect is mocked in the frontend, while contract funding is verified in
+          WSL tests.
+        </p>
+      ) : null}
       <div className="wallet-row">
         <button className="secondary-action" onClick={connectWallet} disabled={Boolean(walletAddress)}>
           Connect wallet
@@ -95,7 +101,7 @@ export function ReservationCard({
         <p className="success-text">
           {reservation.status === "CANCELLED"
             ? `Reservation cancelled for ${reservation.attendeeWallet}`
-            : `Reservation confirmed: ${reservation.status} for ${reservation.attendeeWallet}`}
+            : `Reservation status: ${reservation.status} for ${reservation.attendeeWallet}`}
         </p>
       ) : null}
 

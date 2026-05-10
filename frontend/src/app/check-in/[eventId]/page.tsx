@@ -6,6 +6,8 @@ import {
   checkInAttendee,
   getEvent,
   getReservations,
+  preparePartyDistribution,
+  prepareSponsorDistribution,
   settleEvent,
   undoCheckInAttendee,
   type EventDetails,
@@ -62,10 +64,28 @@ export default function CheckInPage({ params }: CheckInPageProps) {
 
     try {
       const summary = await settleEvent(eventId);
+      const updatedEvent = await getEvent(eventId);
+      const updatedReservations = await getReservations(eventId);
       setSettlement(summary);
+      setEvent(updatedEvent);
+      setReservations(updatedReservations);
     } finally {
       setIsSettling(false);
     }
+  }
+
+  async function handlePreparePartyDistribution() {
+    const summary = await preparePartyDistribution(eventId);
+    const updatedEvent = await getEvent(eventId);
+    setSettlement(summary);
+    setEvent(updatedEvent);
+  }
+
+  async function handlePrepareSponsorDistribution() {
+    const summary = await prepareSponsorDistribution(eventId);
+    const updatedEvent = await getEvent(eventId);
+    setSettlement(summary);
+    setEvent(updatedEvent);
   }
 
   async function handleUndoCheckIn(attendeeWallet: string) {
@@ -97,7 +117,8 @@ export default function CheckInPage({ params }: CheckInPageProps) {
         <p className="eyebrow">CHECK-IN CONSOLE</p>
         <h1>{event?.title ?? "Loading event..."}</h1>
         <p className="body-copy">
-          Check attendees in at the door, then settle refunds and no-show penalties in one pass.
+          Check attendees in at the door, settle deposits first, then prepare any Party or Sponsor
+          bonus distribution before the event is fully done.
         </p>
 
         <section className="flow-grid">
@@ -135,6 +156,16 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           <button className="primary-action" onClick={handleSettlement} disabled={isSettling}>
             {isSettling ? "Settling..." : "Settle Event"}
           </button>
+          {event?.settlementMode === "PARTY" && event.status === "SETTLING" ? (
+            <button className="secondary-action" onClick={() => void handlePreparePartyDistribution()}>
+              Prepare Party Distribution
+            </button>
+          ) : null}
+          {event?.settlementMode === "SPONSOR" && event.status === "SETTLING" ? (
+            <button className="secondary-action" onClick={() => void handlePrepareSponsorDistribution()}>
+              Prepare Sponsor Distribution
+            </button>
+          ) : null}
           <button className="secondary-action" onClick={handleCancelEvent}>
             Cancel Event
           </button>
@@ -144,13 +175,20 @@ export default function CheckInPage({ params }: CheckInPageProps) {
 
         {settlement ? (
           <section className="panel settlement-panel">
-            <p className="success-text">Settlement complete</p>
+            <p className="success-text">
+              {event?.status === "SETTLED" ? "Settlement complete" : "Settlement step complete"}
+            </p>
             <p className="inline-meta">
               Refunded: {settlement.refundedAmount} USDC • Forfeited: {settlement.forfeitedAmount} USDC
             </p>
             {event?.settlementMode === "PARTY" ? (
               <p className="inline-meta">
                 Party bonus: {settlement.partyBonusPerAttendee ?? 0} USDC per checked-in attendee
+              </p>
+            ) : null}
+            {event?.settlementMode === "SPONSOR" ? (
+              <p className="inline-meta">
+                Sponsor bonus: {settlement.sponsorBonusPerAttendee ?? 0} USDC per checked-in attendee
               </p>
             ) : null}
           </section>
