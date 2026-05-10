@@ -139,4 +139,97 @@ describe("backend api", () => {
     expect(prepareResponse.status).toBe(200);
     expect(prepareResponse.body.sponsorBonusPerAttendee).toBe(30);
   });
+
+  it("rejects sponsor pool funding after sponsor settlement has started", async () => {
+    const app = buildServer();
+
+    const createResponse = await request(app).post("/events").send({
+      title: "Late Sponsor Dinner",
+      hostWallet: "host-wallet",
+      venue: "Shanghai",
+      startTime: "2026-05-20T19:00:00.000Z",
+      depositAmount: 20,
+      seatCount: 2,
+      cutoffTime: "2099-05-20T17:00:00.000Z",
+      settlementMode: "SPONSOR"
+    });
+
+    await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 30 });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-1" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/reservations`)
+      .send({ attendeeWallet: "wallet-2" });
+    await request(app)
+      .post(`/events/${createResponse.body.id}/check-in`)
+      .send({ attendeeWallet: "wallet-1" });
+    await request(app).post(`/events/${createResponse.body.id}/settle`);
+
+    const response = await request(app)
+      .post(`/events/${createResponse.body.id}/fund-sponsor-pool`)
+      .send({ amount: 10 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("Sponsor pool funding is closed");
+  });
+
+  it("requires all eligible party attendees to claim before finalizing", async () => {
+    const app = buildServer();
+
+    const settleResponse = await request(app).post("/events/evt_party/settle");
+    expect(settleResponse.status).toBe(200);
+
+    const prepareResponse = await request(app).post("/events/evt_party/prepare-party-distribution");
+    expect(prepareResponse.status).toBe(200);
+
+    const firstClaim = await request(app)
+      .post("/events/evt_party/claim-party-bonus")
+      .send({ attendeeWallet: "wallet-party-1" });
+    expect(firstClaim.status).toBe(200);
+
+    const finalizeBeforeAllClaims = await request(app).post("/events/evt_party/finalize");
+    expect(finalizeBeforeAllClaims.status).toBe(400);
+    expect(finalizeBeforeAllClaims.body.message).toContain("All eligible attendees must claim");
+
+    const secondClaim = await request(app)
+      .post("/events/evt_party/claim-party-bonus")
+      .send({ attendeeWallet: "wallet-party-2" });
+    expect(secondClaim.status).toBe(200);
+
+    const finalizeResponse = await request(app).post("/events/evt_party/finalize");
+    expect(finalizeResponse.status).toBe(200);
+    expect(finalizeResponse.body.status).toBe("SETTLED");
+  });
+
+  it("allows sponsor attendees to claim once and blocks duplicate sponsor claims", async () => {
+    const app = buildServer();
+
+    const settleResponse = await request(app).post("/events/evt_sponsor/settle");
+    expect(settleResponse.status).toBe(200);
+
+    const prepareResponse = await request(app).post("/events/evt_sponsor/prepare-sponsor-distribution");
+    expect(prepareResponse.status).toBe(200);
+
+    const firstClaim = await request(app)
+      .post("/events/evt_sponsor/claim-sponsor-bonus")
+      .send({ attendeeWallet: "wallet-sponsor-1" });
+    expect(firstClaim.status).toBe(200);
+    expect(firstClaim.body.reservation.sponsorBonusClaimed).toBe(true);
+    expect(firstClaim.body.event.distributionStatus).toBe("CLAIM_IN_PROGRESS");
+
+    const duplicateClaim = await request(app)
+      .post("/events/evt_sponsor/claim-sponsor-bonus")
+      .send({ attendeeWallet: "wallet-sponsor-1" });
+    expect(duplicateClaim.status).toBe(400);
+    expect(duplicateClaim.body.message).toContain("already claimed");
+
+    const secondClaim = await request(app)
+      .post("/events/evt_sponsor/claim-sponsor-bonus")
+      .send({ attendeeWallet: "wallet-sponsor-2" });
+    expect(secondClaim.status).toBe(200);
+    expect(secondClaim.body.event.distributionStatus).toBe("COMPLETED");
+  });
 });

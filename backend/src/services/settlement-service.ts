@@ -13,6 +13,17 @@ type PrepareInput = {
   reservations: Array<Pick<ReservationRecord, "id" | "attendeeWallet" | "status" | "paidAmount">>;
 };
 
+type ClaimInput = {
+  event: Pick<EventRecord, "id" | "settlementMode" | "status" | "distributionStatus">;
+  reservations: Array<
+    Pick<
+      ReservationRecord,
+      "id" | "attendeeWallet" | "status" | "partyBonusClaimed" | "sponsorBonusClaimed"
+    >
+  >;
+  attendeeWallet: string;
+};
+
 export function createSettlementService() {
   return {
     settle({ event, reservations }: SettleInput) {
@@ -173,6 +184,112 @@ export function createSettlementService() {
             sponsorBonusPerAttendee * checkedInCount,
           distributionStatus: checkedInCount > 0 ? "CLAIM_IN_PROGRESS" : "COMPLETED"
         }
+      };
+    },
+
+    claimPartyBonus({ event, reservations, attendeeWallet }: ClaimInput) {
+      if (event.settlementMode !== "PARTY") {
+        throw new Error("Party bonus claims are only available for party events");
+      }
+
+      if (event.status !== "SETTLING" || event.distributionStatus === "PENDING") {
+        throw new Error("Party distribution is not ready for claims");
+      }
+
+      const reservation = reservations.find(
+        (candidate) => candidate.attendeeWallet === attendeeWallet
+      );
+
+      if (!reservation) {
+        throw new Error(`Reservation not found for ${attendeeWallet}`);
+      }
+
+      if (reservation.status !== "REFUNDED") {
+        throw new Error("This attendee is not eligible to claim the bonus");
+      }
+
+      if (reservation.partyBonusClaimed) {
+        throw new Error("Party bonus already claimed");
+      }
+
+      reservation.partyBonusClaimed = true;
+      const allClaimed = reservations
+        .filter((candidate) => candidate.status === "REFUNDED")
+        .every((candidate) => candidate.partyBonusClaimed);
+
+      return {
+        reservation,
+        updatedEvent: {
+          ...event,
+          distributionStatus: allClaimed ? "COMPLETED" : "CLAIM_IN_PROGRESS"
+        }
+      };
+    },
+
+    claimSponsorBonus({ event, reservations, attendeeWallet }: ClaimInput) {
+      if (event.settlementMode !== "SPONSOR") {
+        throw new Error("Sponsor bonus claims are only available for sponsor events");
+      }
+
+      if (event.status !== "SETTLING" || event.distributionStatus === "PENDING") {
+        throw new Error("Sponsor distribution is not ready for claims");
+      }
+
+      const reservation = reservations.find(
+        (candidate) => candidate.attendeeWallet === attendeeWallet
+      );
+
+      if (!reservation) {
+        throw new Error(`Reservation not found for ${attendeeWallet}`);
+      }
+
+      if (reservation.status !== "REFUNDED") {
+        throw new Error("This attendee is not eligible to claim the bonus");
+      }
+
+      if (reservation.sponsorBonusClaimed) {
+        throw new Error("Sponsor bonus already claimed");
+      }
+
+      reservation.sponsorBonusClaimed = true;
+      const allClaimed = reservations
+        .filter((candidate) => candidate.status === "REFUNDED")
+        .every((candidate) => candidate.sponsorBonusClaimed);
+
+      return {
+        reservation,
+        updatedEvent: {
+          ...event,
+          distributionStatus: allClaimed ? "COMPLETED" : "CLAIM_IN_PROGRESS"
+        }
+      };
+    },
+
+    finalizeEvent({ event, reservations }: PrepareInput) {
+      if (event.settlementMode === "STRICT") {
+        throw new Error("Strict events do not require a separate finalize step");
+      }
+
+      if (event.status !== "SETTLING" || event.distributionStatus !== "COMPLETED") {
+        throw new Error("All eligible attendees must claim before finalize");
+      }
+
+      const eligibleReservations = reservations.filter(
+        (reservation) => reservation.status === "REFUNDED"
+      );
+      const allClaimed = eligibleReservations.every((reservation) =>
+        event.settlementMode === "PARTY"
+          ? reservation.partyBonusClaimed
+          : reservation.sponsorBonusClaimed
+      );
+
+      if (!allClaimed) {
+        throw new Error("All eligible attendees must claim before finalize");
+      }
+
+      return {
+        ...event,
+        status: "SETTLED" as const
       };
     }
   };

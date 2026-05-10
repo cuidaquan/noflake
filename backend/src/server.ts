@@ -97,7 +97,24 @@ export function buildServer() {
       return;
     }
 
-    event.sponsorPoolFunded = Number(req.body.amount ?? 0);
+    if (event.settlementMode !== "SPONSOR") {
+      res.status(400).json({ message: "Sponsor pool funding is only available for sponsor events" });
+      return;
+    }
+
+    if (event.status === "SETTLING" || event.status === "SETTLED") {
+      res.status(400).json({ message: "Sponsor pool funding is closed after settlement starts" });
+      return;
+    }
+
+    const amount = Number(req.body.amount ?? 0);
+
+    if (amount <= 0) {
+      res.status(400).json({ message: "Sponsor pool amount must be greater than zero" });
+      return;
+    }
+
+    event.sponsorPoolFunded = amount;
     res.status(200).json(event);
   });
 
@@ -155,6 +172,68 @@ export function buildServer() {
     Object.assign(event, result.updatedEvent);
 
     res.status(200).json(result.summary);
+  });
+
+  app.post("/events/:eventId/claim-party-bonus", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    try {
+      const reservations = reservationService.getReservations(req.params.eventId);
+      const result = settlementService.claimPartyBonus({
+        event,
+        reservations,
+        attendeeWallet: req.body.attendeeWallet
+      });
+      Object.assign(event, result.updatedEvent);
+      res.status(200).json({ reservation: result.reservation, event });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Party claim failed" });
+    }
+  });
+
+  app.post("/events/:eventId/claim-sponsor-bonus", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    try {
+      const reservations = reservationService.getReservations(req.params.eventId);
+      const result = settlementService.claimSponsorBonus({
+        event,
+        reservations,
+        attendeeWallet: req.body.attendeeWallet
+      });
+      Object.assign(event, result.updatedEvent);
+      res.status(200).json({ reservation: result.reservation, event });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Sponsor claim failed" });
+    }
+  });
+
+  app.post("/events/:eventId/finalize", (req, res) => {
+    const event = eventService.getEventById(req.params.eventId);
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    try {
+      const reservations = reservationService.getReservations(req.params.eventId);
+      const updatedEvent = settlementService.finalizeEvent({ event, reservations });
+      Object.assign(event, updatedEvent);
+      res.status(200).json(event);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Finalize failed" });
+    }
   });
 
   app.post("/events/:eventId/cancel", (req, res) => {
