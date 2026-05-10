@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createEvent, getEventDashboard, type EventDashboard } from "../lib/api";
+import { useWallet } from "./wallet-provider";
 
 type CreatedEvent = {
   id: string;
@@ -13,6 +14,7 @@ type CreatedEvent = {
 };
 
 export function EventForm() {
+  const { walletAddress } = useWallet();
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
   const [depositAmount, setDepositAmount] = useState("20");
@@ -32,7 +34,7 @@ export function EventForm() {
     try {
       const response = await createEvent({
         title,
-        hostWallet: "demo-host-wallet",
+        hostWallet: walletAddress ?? "demo-host-wallet",
         venue,
         startTime: "2026-05-20T19:00:00.000Z",
         depositAmount: Number(depositAmount),
@@ -53,6 +55,8 @@ export function EventForm() {
   return (
     <div className="flow-grid">
       <form className="panel" onSubmit={handleSubmit}>
+        <p className="inline-meta">Connected host wallet: {walletAddress ?? "demo-host-wallet"}</p>
+
         <label className="field">
           <span>Title</span>
           <input value={title} onChange={(event) => setTitle(event.target.value)} />

@@ -2,6 +2,7 @@ import { expect, test } from "./test-helpers";
 
 test("organizer can create an event", async ({ page }) => {
   await page.goto("/organizer");
+  await expect(page.getByText("Connected host wallet: demo-host-wallet")).toBeVisible();
   await page.getByLabel("Title").fill("Builder Dinner");
   await page.getByLabel("Venue").fill("Shanghai");
   await page.getByLabel("Deposit Amount").fill("20");
